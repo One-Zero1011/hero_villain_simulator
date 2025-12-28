@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Character, Housing, PlacedHousingItem } from '../../types/index';
 import { HOUSING_THEMES, HOUSING_ITEMS } from '../../data/housingOptions';
 import { getInteractionAction } from '../../data/socialInteractions';

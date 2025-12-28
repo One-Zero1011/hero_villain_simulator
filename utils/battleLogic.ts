@@ -1,5 +1,5 @@
 
-import { Character, Role } from '../types/index';
+import { Character } from '../types/index';
 import { getRandom, formatTemplate } from './helpers';
 
 interface BattleCalculation {

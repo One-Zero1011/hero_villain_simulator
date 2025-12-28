@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { Role } from './types/index';
 import { Shield, Skull, Users } from 'lucide-react';

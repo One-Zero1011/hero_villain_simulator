@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { Character, LogEntry, Role, Status, Housing, FactionResources, Item } from '../types/index';
+import { Character, LogEntry, Role, Status, Housing, FactionResources } from '../types/index';
 import { processDailyEvents } from '../services/simulationService';
 import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
@@ -204,7 +204,7 @@ export const useGameEngine = () => {
         type: 'BATTLE',
         timestamp: Date.now()
       },
-      ...battleLogTexts.slice(-3).map((text, i) => ({ // Add last 3 lines of combat log to main log
+      ...battleLogTexts.slice(-3).map((text) => ({ // Add last 3 lines of combat log to main log
         id: generateId(),
         day: day + 1,
         message: `> ${text}`,
