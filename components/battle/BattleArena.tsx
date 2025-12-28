@@ -1,6 +1,8 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Character, Role } from '../../types/index';
 import { Shield, Skull, Sword, Zap, HeartPulse, Flame, AlertTriangle } from 'lucide-react';
+import { calculateBattleDamage, getBattleFlavorText } from '../../utils/battleLogic';
 
 interface Props {
   hero: Character;
@@ -12,7 +14,7 @@ interface FloatingText {
   id: number;
   role: Role;
   text: string;
-  type: 'damage' | 'crit';
+  type: 'damage' | 'crit' | 'glancing';
 }
 
 const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
@@ -39,6 +41,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   useEffect(() => {
     if (isFinished) return;
 
+    // First turn delay or next turn delay
     const intervalId = setInterval(() => {
       handleTurn();
     }, 1500);
@@ -46,7 +49,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     return () => clearInterval(intervalId);
   }, [turn, isFinished]);
 
-  const addFloatingText = (role: Role, text: string, type: 'damage' | 'crit') => {
+  const addFloatingText = (role: Role, text: string, type: 'damage' | 'crit' | 'glancing') => {
     const id = Date.now() + Math.random();
     setFloatingTexts(prev => [...prev, { id, role, text, type }]);
     setTimeout(() => {
@@ -58,29 +61,39 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     const isHeroTurn = turn % 2 === 0;
     const attackerRole = isHeroTurn ? Role.HERO : Role.VILLAIN;
     const defenderRole = isHeroTurn ? Role.VILLAIN : Role.HERO;
+    const attackerChar = isHeroTurn ? hero : villain;
+    const defenderChar = isHeroTurn ? villain : hero;
 
     setAttacker(attackerRole);
 
-    const attackerChar = isHeroTurn ? hero : villain;
-    
-    // Damage Calc
-    const isCrit = Math.random() < (attackerChar.power / 200); // Adjusted crit chance
-    const baseDamage = Math.floor(attackerChar.power / 6) + Math.floor(Math.random() * 10);
-    const damage = isCrit ? Math.floor(baseDamage * 1.5) : baseDamage;
+    // Calculate Damage Logic
+    const result = calculateBattleDamage(attackerChar, defenderChar);
+    const damage = result.damage;
 
     // Trigger Visuals
     setTimeout(() => {
        setHitFlash(defenderRole);
-       addFloatingText(defenderRole, isCrit ? `${damage}!` : `${damage}`, isCrit ? 'crit' : 'damage');
+       
+       let floatType: 'damage' | 'crit' | 'glancing' = 'damage';
+       let floatText = `-${damage}`;
+       
+       if (result.isCrit) {
+         floatType = 'crit';
+         floatText = `CRIT! -${damage}`;
+       } else if (result.isGlancing) {
+         floatType = 'glancing';
+         floatText = `Glance -${damage}`;
+       }
+
+       addFloatingText(defenderRole, floatText, floatType);
        setTimeout(() => setHitFlash(null), 200);
     }, 200);
 
-    const logMsg = isCrit 
-      ? `💥 CRITICAL! ${attackerChar.name}이(가) ${damage}의 치명적인 피해를 입혔습니다!`
-      : `⚔️ ${attackerChar.name}의 공격! ${damage}의 피해를 입혔습니다.`;
-
+    // Generate Log
+    const logMsg = getBattleFlavorText(attackerChar.name, defenderChar.name, result);
     setLogs(prev => [...prev, logMsg]);
 
+    // Apply Damage
     if (isHeroTurn) {
       setVillainHp(prev => {
         const newHp = Math.max(0, prev - damage);
@@ -101,7 +114,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   const finishBattle = (winner: Character, loser: Character) => {
     setIsFinished(true);
     setAttacker(null);
-    setLogs(prev => [...prev, `🏆 ${winner.name} 승리!`]);
+    setLogs(prev => [...prev, `🏆 전투 종료! 승자: ${winner.name}`]);
     
     setTimeout(() => {
       onComplete(winner, loser, logs);
@@ -116,21 +129,20 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-      <div className="w-full max-w-4xl bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col relative min-h-[600px]">
+      <div className="w-full max-w-4xl bg-[#232323] border-2 border-[#404040] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative min-h-[600px]">
         
         {/* Battle Header */}
         <div className="absolute top-0 w-full p-4 flex justify-between items-center bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 pointer-events-none">
           <div className="flex items-center gap-2">
             <div className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded animate-pulse shadow-lg shadow-red-500/50">LIVE COMBAT</div>
           </div>
-          <div className="text-slate-200 font-mono text-lg font-bold drop-shadow-md">TURN {Math.floor(turn / 2) + 1}</div>
+          <div className="text-gray-200 font-mono text-lg font-bold drop-shadow-md">TURN {Math.floor(turn / 2) + 1}</div>
         </div>
 
         {/* Dynamic Background */}
         <div className="absolute inset-0 z-0">
-           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40"></div>
-           <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-black/60 mix-blend-overlay animate-pulse-slow"></div>
-           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#0f172a_100%)]"></div>
+           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-30 grayscale"></div>
+           <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a]/80 via-[#232323]/80 to-black/80 mix-blend-multiply"></div>
         </div>
 
         {/* Fighters Stage */}
@@ -139,12 +151,12 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
           {/* Hero Side */}
           <div className="relative flex flex-col items-center">
             {/* HP Bar */}
-            <div className="w-56 mb-6 bg-slate-900/90 p-3 rounded-xl border border-slate-600 shadow-2xl backdrop-blur-md">
+            <div className="w-56 mb-6 bg-[#1c1c1c]/90 p-3 rounded-xl border border-[#404040] shadow-2xl backdrop-blur-md">
               <div className="flex justify-between text-sm text-blue-200 mb-2 font-bold tracking-wide">
                 <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> {hero.name}</span>
                 <span className="font-mono">{heroHp}%</span>
               </div>
-              <div className="h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
+              <div className="h-4 bg-[#333] rounded-full overflow-hidden border border-[#404040] relative">
                 <div className={`h-full transition-all duration-300 ${getHpColor(heroHp)}`} style={{ width: `${heroHp}%` }}></div>
                 <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
               </div>
@@ -161,13 +173,18 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
               ${attacker === Role.HERO ? 'translate-x-12 scale-110 z-20' : ''} 
               ${hitFlash === Role.HERO ? 'brightness-200 saturate-0 animate-shake text-red-500' : ''}
             `}>
-              <div className="w-40 h-40 rounded-full bg-gradient-to-br from-blue-900 to-slate-900 border-4 border-blue-500 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.6)] relative overflow-hidden group">
-                 <Shield className={`w-20 h-20 text-blue-300 transition-transform duration-500 ${attacker === Role.HERO ? 'scale-125' : ''}`} />
-                 <div className="absolute inset-0 bg-blue-500/20 mix-blend-overlay"></div>
+              <div className="w-40 h-40 rounded-full bg-gradient-to-br from-[#1e3a8a] to-[#232323] border-4 border-blue-500 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.4)] relative overflow-hidden group">
+                 {hero.imageUrl ? (
+                   <img src={hero.imageUrl} alt={hero.name} className="w-full h-full object-cover" />
+                 ) : (
+                   <Shield className={`w-20 h-20 text-blue-300 transition-transform duration-500 ${attacker === Role.HERO ? 'scale-125' : ''}`} />
+                 )}
+                 <div className="absolute inset-0 bg-blue-500/10 mix-blend-overlay"></div>
               </div>
               
               {floatingTexts.filter(ft => ft.role === Role.HERO).map(ft => (
-                <div key={ft.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full font-black text-4xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-up pointer-events-none whitespace-nowrap z-50 ${ft.type === 'crit' ? 'text-yellow-400 scale-125' : 'text-white'}`}>
+                <div key={ft.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full font-black text-4xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-up pointer-events-none whitespace-nowrap z-50 
+                  ${ft.type === 'crit' ? 'text-yellow-400 scale-125' : ft.type === 'glancing' ? 'text-gray-400 text-2xl' : 'text-white'}`}>
                   {ft.text}
                 </div>
               ))}
@@ -179,7 +196,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
           {/* VS Center */}
           <div className="flex flex-col items-center justify-center">
              <div className="relative">
-               <Sword className="w-16 h-16 text-slate-500/50 animate-pulse" />
+               <Sword className="w-16 h-16 text-gray-600 animate-pulse" />
                {isFinished && <div className="absolute inset-0 flex items-center justify-center text-4xl">🏁</div>}
              </div>
           </div>
@@ -187,12 +204,12 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
           {/* Villain Side */}
           <div className="relative flex flex-col items-center">
             {/* HP Bar */}
-            <div className="w-56 mb-6 bg-slate-900/90 p-3 rounded-xl border border-slate-600 shadow-2xl backdrop-blur-md">
+            <div className="w-56 mb-6 bg-[#1c1c1c]/90 p-3 rounded-xl border border-[#404040] shadow-2xl backdrop-blur-md">
               <div className="flex justify-between text-sm text-red-200 mb-2 font-bold tracking-wide">
                 <span className="flex items-center gap-1"><Skull className="w-3 h-3" /> {villain.name}</span>
                 <span className="font-mono">{villainHp}%</span>
               </div>
-              <div className="h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 relative">
+              <div className="h-4 bg-[#333] rounded-full overflow-hidden border border-[#404040] relative">
                 <div className={`h-full transition-all duration-300 ${getHpColor(villainHp)}`} style={{ width: `${villainHp}%` }}></div>
                 <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
               </div>
@@ -209,13 +226,18 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
               ${attacker === Role.VILLAIN ? '-translate-x-12 scale-110 z-20' : ''} 
               ${hitFlash === Role.VILLAIN ? 'brightness-200 saturate-0 animate-shake text-red-500' : ''}
             `}>
-              <div className="w-40 h-40 rounded-full bg-gradient-to-br from-red-900 to-slate-900 border-4 border-red-500 flex items-center justify-center shadow-[0_0_50px_rgba(239,68,68,0.6)] relative overflow-hidden">
-                 <Skull className={`w-20 h-20 text-red-300 transition-transform duration-500 ${attacker === Role.VILLAIN ? 'scale-125' : ''}`} />
-                 <div className="absolute inset-0 bg-red-500/20 mix-blend-overlay"></div>
+              <div className="w-40 h-40 rounded-full bg-gradient-to-br from-[#7f1d1d] to-[#232323] border-4 border-red-500 flex items-center justify-center shadow-[0_0_50px_rgba(239,68,68,0.4)] relative overflow-hidden">
+                 {villain.imageUrl ? (
+                   <img src={villain.imageUrl} alt={villain.name} className="w-full h-full object-cover" />
+                 ) : (
+                   <Skull className={`w-20 h-20 text-red-300 transition-transform duration-500 ${attacker === Role.VILLAIN ? 'scale-125' : ''}`} />
+                 )}
+                 <div className="absolute inset-0 bg-red-500/10 mix-blend-overlay"></div>
               </div>
 
                {floatingTexts.filter(ft => ft.role === Role.VILLAIN).map(ft => (
-                <div key={ft.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full font-black text-4xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-up pointer-events-none whitespace-nowrap z-50 ${ft.type === 'crit' ? 'text-yellow-400 scale-125' : 'text-white'}`}>
+                <div key={ft.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full font-black text-4xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-up pointer-events-none whitespace-nowrap z-50 
+                  ${ft.type === 'crit' ? 'text-yellow-400 scale-125' : ft.type === 'glancing' ? 'text-gray-400 text-2xl' : 'text-white'}`}>
                   {ft.text}
                 </div>
               ))}
@@ -226,10 +248,10 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
         </div>
 
         {/* Combat Log */}
-        <div className="h-48 bg-black/80 border-t border-slate-700/50 p-4 font-mono text-sm overflow-y-auto log-scroll relative z-20 backdrop-blur-md">
+        <div className="h-48 bg-black/80 border-t border-[#404040] p-4 font-mono text-sm overflow-y-auto log-scroll relative z-20 backdrop-blur-md">
           {logs.map((log, idx) => (
-            <div key={idx} className="mb-1 animate-fade-in text-slate-300 border-b border-slate-800/50 pb-1 last:border-0">
-              <span className="text-slate-500 mr-2 text-xs">[{idx + 1}]</span>
+            <div key={idx} className="mb-1 animate-fade-in text-gray-300 border-b border-[#333] pb-1 last:border-0">
+              <span className="text-gray-500 mr-2 text-xs">[{idx + 1}]</span>
               {log}
             </div>
           ))}
@@ -255,13 +277,6 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
         }
         .animate-float-up {
           animation: float-up 0.8s ease-out forwards;
-        }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.6; }
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 4s infinite ease-in-out;
         }
       `}</style>
     </div>

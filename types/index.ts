@@ -1,3 +1,4 @@
+
 export enum Role {
   HERO = 'HERO',
   VILLAIN = 'VILLAIN',
@@ -22,8 +23,9 @@ export interface Stats {
 
 export interface Relationship {
   targetId: string;
-  targetName: string; // Store name snapshot for easier display
-  type: string; // e.g., "라이벌", "가족", "친구"
+  targetName: string;
+  type: string;
+  isMutual?: boolean; // Added for bidirectional check
 }
 
 export interface HousingItem {
@@ -33,9 +35,17 @@ export interface HousingItem {
   description: string;
 }
 
+// New interface for items placed in the room
+export interface PlacedHousingItem {
+  uuid: string; // Unique instance ID for handling multiple of same item
+  itemId: string;
+  x: number; // Percentage 0-100
+  y: number; // Percentage 0-100
+}
+
 export interface Housing {
   themeId: string;
-  items: string[];
+  items: PlacedHousingItem[]; // Changed from string[] to object array
 }
 
 export interface Character {
@@ -53,8 +63,8 @@ export interface Character {
   mbti: string;
   
   // Stats & Abilities
-  power: number; // Calculated average of stats for backward compatibility/battle logic
-  stats?: Stats; // Optional because Civilians might not have detailed combat stats
+  power: number;
+  stats?: Stats;
   superpower?: string;
   
   // Social
@@ -66,6 +76,27 @@ export interface Character {
   battlesWon: number;
   housing?: Housing;
 }
+
+// --- Item Effects ---
+export type EffectType = 'HEAL' | 'BUFF_STRENGTH' | 'BUFF_LUCK' | 'GAMBLE_MONEY';
+
+export interface Item {
+  id: string;
+  name: string;
+  icon: string; // Lucide icon name or emoji
+  count: number;
+  description?: string;
+  price?: number; 
+  role?: Role | 'COMMON';
+  effectType?: EffectType; // Added
+  effectValue?: number;    // Added
+}
+
+export interface FactionResources {
+  money: number;
+  inventory: Item[];
+}
+// --------------------------------
 
 export interface LogEntry {
   id: string;
