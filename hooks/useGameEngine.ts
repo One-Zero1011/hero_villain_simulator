@@ -6,70 +6,7 @@ import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
 
 // Updated Initial Characters
-const INITIAL_CHARACTERS: Character[] = [
-  { 
-    id: '1', 
-    name: '캡틴 코리아', 
-    role: Role.HERO, 
-    status: Status.NORMAL, 
-    gender: '남성',
-    age: 32,
-    mbti: 'ENFJ',
-    personality: '정의로운',
-    isIdentityRevealed: false, // Default hidden
-    power: 88, 
-    stats: { strength: 90, intelligence: 70, stamina: 95, luck: 80 },
-    superpower: '초괴력 (Super Strength)',
-    relationships: [],
-    kills: 0, 
-    saves: 12, 
-    battlesWon: 5,
-    housing: {
-      themeId: 'default_room',
-      items: []
-    }
-  },
-  { 
-    id: '2', 
-    name: '닥터 둠', 
-    role: Role.VILLAIN, 
-    status: Status.NORMAL, 
-    gender: '남성',
-    age: 45,
-    mbti: 'INTJ',
-    personality: '오만한',
-    power: 92, 
-    stats: { strength: 70, intelligence: 100, stamina: 80, luck: 60 },
-    superpower: '천재적 지능 (Super Intelligence)',
-    relationships: [],
-    kills: 2, 
-    saves: 0, 
-    battlesWon: 4,
-    housing: {
-      themeId: 'evil_lair',
-      items: []
-    }
-  },
-  { 
-    id: '3', 
-    name: '시민 김철수', 
-    role: Role.CIVILIAN, 
-    status: Status.NORMAL, 
-    gender: '남성',
-    age: 28,
-    mbti: 'ISFP',
-    personality: '소심한',
-    power: 5, 
-    relationships: [],
-    kills: 0, 
-    saves: 0, 
-    battlesWon: 0,
-    housing: {
-      themeId: 'cozy_house',
-      items: []
-    }
-  },
-];
+const INITIAL_CHARACTERS: Character[] = [];
 
 // Helper to create initial items safely
 const createItem = (id: string, count: number): Item | null => {
