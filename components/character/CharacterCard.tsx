@@ -12,6 +12,7 @@ interface Props {
 const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) => {
   const isDead = character.status === Status.DEAD;
   const isInjured = character.status === Status.INJURED;
+  const isInsane = character.isInsane;
 
   const getRoleStyle = (role: Role) => {
     switch (role) {
@@ -19,19 +20,19 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
         return {
           wrapper: 'bg-[#2a2a2a] border-l-4 border-blue-500',
           badge: 'bg-blue-900/30 text-blue-300 border border-blue-800',
-          icon: <Shield className="w-4 h-4 text-blue-400" />
+          icon: <Shield className="w-10 h-10 text-blue-400" />
         };
       case Role.VILLAIN: 
         return {
           wrapper: 'bg-[#2a2a2a] border-l-4 border-red-500',
           badge: 'bg-red-900/30 text-red-300 border border-red-800',
-          icon: <Skull className="w-4 h-4 text-red-400" />
+          icon: <Skull className="w-10 h-10 text-red-400" />
         };
       case Role.CIVILIAN: 
         return {
           wrapper: 'bg-[#2a2a2a] border-l-4 border-green-500',
           badge: 'bg-green-900/30 text-green-300 border border-green-800',
-          icon: <User className="w-4 h-4 text-green-400" />
+          icon: <User className="w-10 h-10 text-green-400" />
         };
       default: return { wrapper: '', badge: '', icon: null };
     }
@@ -52,33 +53,63 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
   // Derived Stats (x2 Multiplier)
   const maxHp = (character.stats?.stamina || 0) * 2;
   const currentHp = isInjured ? Math.round(maxHp * 0.3) : maxHp;
-  const maxMp = (character.stats?.intelligence || 0) * 2;
+  
+  // Sanity logic
+  const maxSanity = (character.stats?.intelligence || 50) * 2;
+  const currentSanity = character.currentSanity ?? maxSanity;
+  const sanityPercent = (currentSanity / maxSanity) * 100;
 
   return (
     <div className={`relative p-4 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 
       ${styles.wrapper} 
       ${isDead ? 'opacity-50 grayscale' : ''} 
-      ${isInjured ? 'border-orange-500/50 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' : 'border-[#333333]'}
+      ${isInsane ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : ''}
+      ${isInjured && !isInsane ? 'border-orange-500/50 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' : 'border-[#333333]'}
       group border border-t-0 border-r-0 border-b-0`}
     >
       
       {/* Header */}
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-3">
           {character.imageUrl ? (
-             <div className={`w-10 h-10 rounded-full border overflow-hidden bg-[#1c1c1c] ${isInjured ? 'border-orange-500' : 'border-[#404040]'}`}>
-               <img src={character.imageUrl} alt={character.name} className="w-full h-full object-cover" />
+             <div className={`w-20 h-20 rounded-full border-2 overflow-hidden bg-[#1c1c1c] shrink-0 ${isInsane ? 'border-purple-500 animate-pulse' : isInjured ? 'border-orange-500' : 'border-[#404040]'}`}>
+               <img src={character.imageUrl} alt={character.name} className={`w-full h-full object-cover ${isInsane ? 'hue-rotate-90 contrast-125' : ''}`} />
              </div>
           ) : (
-            <div className={`p-1.5 rounded-full bg-[#333333]`}>
+            <div className={`w-20 h-20 rounded-full border-2 border-[#404040] bg-[#333333] flex items-center justify-center shrink-0`}>
               {styles.icon}
             </div>
           )}
           
-          <div>
-            <h3 className="font-bold text-gray-100 leading-tight flex items-center gap-1">
-              {character.name}
-            </h3>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+               <h3 className={`font-bold leading-tight flex items-center gap-1 text-lg truncate ${isInsane ? 'text-purple-400 italic tracking-widest' : 'text-gray-100'}`}>
+                 {character.name}
+               </h3>
+               
+               {/* Status Display Moved Here for Better Layout with Large Image */}
+               <div className="flex flex-col items-end shrink-0 ml-2">
+                  <div className="flex items-center gap-1 mb-0.5">
+                     {isInsane ? (
+                        <span className="text-xs text-purple-500 font-black animate-pulse flex items-center gap-1">
+                          <Brain className="w-3 h-3" /> INSANE
+                        </span>
+                     ) : isInjured ? (
+                       <>
+                        <AlertTriangle className="w-3 h-3 text-orange-500 animate-bounce" />
+                        <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
+                       </>
+                     ) : (
+                       <>
+                        <Activity className="w-3 h-3 text-gray-500" />
+                        <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
+                       </>
+                     )}
+                  </div>
+                  <span className="text-[10px] text-gray-500 text-right">{character.age}세 / {character.gender}</span>
+               </div>
+            </div>
+
             <div className="flex flex-wrap gap-1 mt-1">
               <span className={`text-[10px] px-1.5 py-0.5 rounded ${styles.badge}`}>
                 {character.role}
@@ -109,17 +140,6 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-end">
-          <div className="flex items-center gap-1 mb-1">
-             {isInjured ? (
-               <AlertTriangle className="w-3 h-3 text-orange-500 animate-bounce" />
-             ) : (
-               <Activity className="w-3 h-3 text-gray-500" />
-             )}
-             <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
-          </div>
-          <span className="text-[10px] text-gray-500">{character.age}세 / {character.gender}</span>
-        </div>
       </div>
 
       {/* Hero/Villain Stats & Superpower */}
@@ -130,11 +150,11 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
           </div>
           
           {/* New Stats Layout with Bars */}
-          <div className={`bg-[#1c1c1c] p-2 rounded border space-y-2 ${isInjured ? 'border-orange-900/30' : 'border-[#333333]'}`}>
+          <div className={`bg-[#1c1c1c] p-2 rounded border space-y-2 ${isInsane ? 'border-purple-900/50 bg-purple-900/10' : isInjured ? 'border-orange-900/30' : 'border-[#333333]'}`}>
             
-            {/* Bars Section: Represents Health/Mental Status based on Max Stats */}
+            {/* Bars Section */}
             <div className="space-y-1.5">
-              {/* HP / Stamina Bar (Visualizes current condition vs Max Stamina) */}
+              {/* HP / Stamina Bar */}
               <div className="flex items-center gap-2" title={`체력 (최대 ${maxHp})`}>
                 <Heart className={`w-3 h-3 shrink-0 ${isInjured ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`} />
                 <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden">
@@ -147,15 +167,20 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
                 </span>
               </div>
 
-              {/* MP / Intelligence Bar (Visualizes Max Mental Capacity) */}
-              <div className="flex items-center gap-2" title={`지능/정신력 (최대 ${maxMp})`}>
-                <Brain className="w-3 h-3 text-blue-400 shrink-0" />
-                <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden">
+              {/* Sanity / Mental Bar */}
+              <div className="flex items-center gap-2" title={`정신력 (최대 ${maxSanity}) - 10% 미만 위험`}>
+                <Brain className={`w-3 h-3 shrink-0 ${isInsane ? 'text-purple-500 animate-spin-slow' : 'text-blue-400'}`} />
+                <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden relative">
+                  {/* Danger Zone Marker */}
+                  <div className="absolute left-0 top-0 bottom-0 w-[10%] bg-red-900/50 z-0"></div>
                   <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500 w-full"
+                    className={`h-full rounded-full transition-all duration-500 z-10 relative ${isInsane ? 'bg-purple-600' : sanityPercent < 20 ? 'bg-red-500' : 'bg-blue-500'}`}
+                    style={{ width: `${Math.max(0, Math.min(100, sanityPercent))}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-mono text-blue-400 w-10 text-right">{maxMp}</span>
+                <span className={`text-[10px] font-mono w-10 text-right ${isInsane ? 'text-purple-400 font-bold' : 'text-blue-400'}`}>
+                  {Math.round(currentSanity)}
+                </span>
               </div>
             </div>
 
@@ -214,8 +239,16 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
         </button>
       </div>
       
+      {/* Insanity Overlay Effect */}
+      {isInsane && !isDead && (
+        <div className="absolute inset-0 pointer-events-none z-0 rounded-lg overflow-hidden mix-blend-overlay opacity-30">
+           <div className="absolute inset-0 bg-purple-600 mix-blend-color-burn animate-pulse"></div>
+           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/noise-lines.png')] opacity-20"></div>
+        </div>
+      )}
+
       {/* Injured Overlay */}
-      {isInjured && (
+      {isInjured && !isInsane && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden rounded-lg">
            <div className="absolute inset-0 bg-red-500/10 animate-pulse"></div>
            <div className="bg-black/40 backdrop-blur-[2px] absolute inset-0"></div>

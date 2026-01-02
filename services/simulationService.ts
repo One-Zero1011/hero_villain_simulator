@@ -8,6 +8,7 @@ import {
   RECOVERY_EVENTS
 } from '../data/events';
 import { MBTI_LOGS, COMBINATION_LOGS } from '../data/mbti/index';
+import { INSANITY_LOGS } from '../data/insanityEvents';
 import { COMBINED_RELATIONSHIP_EVENTS as RELATIONSHIP_EVENTS } from '../data/relationships/index';
 import { generateId, getRandom, formatTemplate, getRoleKey } from '../utils/helpers';
 
@@ -34,6 +35,54 @@ export const processDailyEvents = (
   const individualLogs: LogEntry[] = [];
   const interactionLogs: LogEntry[] = [];
 
+  // --- Phase 0: Sanity Check & Decay ---
+  updatedCharacters = updatedCharacters.map(char => {
+    if (char.status === Status.DEAD || excludeIds.includes(char.id)) return char;
+
+    const maxSanity = (char.stats?.intelligence || 50) * 2;
+    let newSanity = char.currentSanity ?? maxSanity;
+    
+    // Natural Decay or Recovery
+    if (char.status === Status.INJURED) {
+      newSanity = Math.max(0, newSanity - Math.floor(Math.random() * 10));
+    } else {
+      // Small fluctuation
+      newSanity = Math.max(0, Math.min(maxSanity, newSanity + (Math.random() > 0.6 ? 5 : -5)));
+    }
+
+    // Check Sanity Threshold (10%)
+    const sanityThreshold = maxSanity * 0.1;
+    let isInsane = char.isInsane;
+
+    if (newSanity <= sanityThreshold) {
+      // 0~10% range: 60% chance to go INSANE
+      if (!isInsane && Math.random() < 0.6) {
+        isInsane = true;
+        systemLogs.push({
+          id: generateId(),
+          day: nextDay,
+          message: `[경고] ${char.name}의 정신력이 한계에 도달하여 정신 착란 증세를 보입니다!`,
+          type: 'INSANITY',
+          timestamp: Date.now()
+        });
+      }
+    } else if (newSanity > sanityThreshold * 2) {
+      // Recover if sanity goes back up safely (above 20%)
+      if (isInsane) {
+        isInsane = false;
+        systemLogs.push({
+          id: generateId(),
+          day: nextDay,
+          message: `${char.name}이(가) 안정을 되찾고 제정신으로 돌아왔습니다.`,
+          type: 'INFO',
+          timestamp: Date.now()
+        });
+      }
+    }
+
+    return { ...char, currentSanity: newSanity, isInsane };
+  });
+
   // --- Phase 1: Recovery (System) ---
   updatedCharacters = updatedCharacters.map(char => {
     if (char.status === Status.INJURED) {
@@ -55,7 +104,7 @@ export const processDailyEvents = (
   // --- Phase 2: Villain Harassment (System/Critical Event) ---
   const updates = new Map<string, Partial<Character>>();
   // Active characters excluding battle participants and dead ones
-  const activeVillains = updatedCharacters.filter(c => c.role === Role.VILLAIN && c.status === Status.NORMAL && !excludeIds.includes(c.id));
+  const activeVillains = updatedCharacters.filter(c => c.role === Role.VILLAIN && c.status === Status.NORMAL && !c.isInsane && !excludeIds.includes(c.id));
   const potentialVictims = updatedCharacters.filter(c => c.role === Role.CIVILIAN && c.status === Status.NORMAL && !excludeIds.includes(c.id));
 
   activeVillains.forEach(villain => {
@@ -99,43 +148,34 @@ export const processDailyEvents = (
   const activeCharacters = updatedCharacters.filter(c => c.status !== Status.DEAD && !excludeIds.includes(c.id));
 
   // --- Phase 3: Individual Daily Logs ---
-  // Logic: 
-  // - Chance to log at all: 35%
-  // - If Personality Set: 70% Combo Log, 30% Role Log
-  // - If No Personality: 70% MBTI Log, 30% Role Log
+  // Updated Logic for Insanity:
+  // - If Insane: 55% Special Log, 30% MBTI/Personality, 15% Role
+  // - If Normal: 70% MBTI/Personality, 30% Role
   activeCharacters.forEach(char => {
-    if (Math.random() > 0.35) return; // Skip logic
+    if (Math.random() > 0.4) return; // Skip logic (reduced trigger rate slightly to avoid clutter)
 
     let template = "";
-    const useSpecialLog = Math.random() < 0.7; // 70% chance
+    const rand = Math.random() * 100;
 
-    if (char.personality) {
-      // 1. Has Personality
-      if (useSpecialLog) {
-        // Try MBTI + Personality Combo
-        const key = `${char.mbti}_${char.personality}`;
-        const combos = COMBINATION_LOGS[key];
-        if (combos && combos.length > 0) {
-          template = getRandom(combos);
-        } else {
-          // Fallback to Role if combo doesn't exist
-          template = getRoleBasedLog(char.role);
-        }
+    if (char.isInsane) {
+      // Insane Logic
+      if (rand < 55) {
+        // 55% Insanity Log
+        template = getRandom(INSANITY_LOGS);
+      } else if (rand < 85) {
+        // 30% MBTI/Personality
+        template = getPersonalityLog(char);
       } else {
-        // Role Log (30%)
+        // 15% Role
         template = getRoleBasedLog(char.role);
       }
     } else {
-      // 2. No Personality (MBTI only)
-      if (useSpecialLog) {
-        const mbtiLogs = MBTI_LOGS[char.mbti];
-        if (mbtiLogs && mbtiLogs.length > 0) {
-          template = getRandom(mbtiLogs);
-        } else {
-          template = getRoleBasedLog(char.role);
-        }
+      // Normal Logic
+      if (rand < 70) {
+        // 70% MBTI/Personality
+        template = getPersonalityLog(char);
       } else {
-        // Role Log (30%)
+        // 30% Role
         template = getRoleBasedLog(char.role);
       }
     }
@@ -145,18 +185,20 @@ export const processDailyEvents = (
         id: generateId(),
         day: nextDay,
         message: formatTemplate(template, { name: char.name }),
-        type: 'INFO',
+        type: char.isInsane ? 'INSANITY' : 'INFO',
         timestamp: Date.now()
       });
     }
   });
 
   // --- Phase 4: Relationship Interactions ---
-  // Logic: Count is proportional to total characters (e.g., 40% of population size)
   // Collect ALL valid relationship pairs
   const possibleInteractions: { actor: Character, target: Character, relType: string }[] = [];
 
   activeCharacters.forEach(actor => {
+    // Insane characters are less likely to have normal interactions
+    if (actor.isInsane && Math.random() > 0.2) return; 
+
     actor.relationships.forEach(rel => {
       const target = activeCharacters.find(c => c.id === rel.targetId);
       if (target) {
@@ -165,11 +207,8 @@ export const processDailyEvents = (
     });
   });
 
-  // Determine target number of interaction logs
-  // Example: 10 chars -> 4 logs. 20 chars -> 8 logs.
   const targetInteractionCount = Math.max(1, Math.floor(activeCharacters.length * 0.4));
   
-  // Shuffle and pick
   const selectedInteractions = possibleInteractions
     .sort(() => 0.5 - Math.random())
     .slice(0, targetInteractionCount);
@@ -197,3 +236,25 @@ export const processDailyEvents = (
     newLogs: [...systemLogs, ...individualLogs, ...interactionLogs] 
   };
 };
+
+// Helper function to extract personality/MBTI logic
+const getPersonalityLog = (char: Character): string => {
+  let template = "";
+  if (char.personality) {
+    const key = `${char.mbti}_${char.personality}`;
+    const combos = COMBINATION_LOGS[key];
+    if (combos && combos.length > 0) {
+      template = getRandom(combos);
+    } else {
+      template = getRoleBasedLog(char.role);
+    }
+  } else {
+    const mbtiLogs = MBTI_LOGS[char.mbti];
+    if (mbtiLogs && mbtiLogs.length > 0) {
+      template = getRandom(mbtiLogs);
+    } else {
+      template = getRoleBasedLog(char.role);
+    }
+  }
+  return template;
+}

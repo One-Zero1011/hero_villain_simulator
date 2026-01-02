@@ -1,40 +1,42 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Character, Role } from '../../types/index';
-import { Shield, Skull, Sword, Zap, HeartPulse, Flame, AlertTriangle, SkipForward } from 'lucide-react';
+import { Shield, Skull, Sword, Zap, HeartPulse, Flame, AlertTriangle, SkipForward, User } from 'lucide-react';
 import { calculateBattleDamage, getBattleFlavorText } from '../../utils/battleLogic';
 
 interface Props {
-  hero: Character;
-  villain: Character;
+  hero: Character; // Treated as Left Side (Player 1 / Attacker initially)
+  villain: Character; // Treated as Right Side (Player 2 / Defender initially)
   onComplete: (winner: Character, loser: Character, logs: string[]) => void;
 }
 
+type Side = 'left' | 'right';
+
 interface FloatingText {
   id: number;
-  role: Role;
+  side: Side; // Changed from Role to Side to support same-role battles
   text: string;
   type: 'damage' | 'crit' | 'glancing';
 }
 
-const HP_MULTIPLIER = 2; // Stamina stat to HP conversion factor
+const HP_MULTIPLIER = 2;
 
 const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
-  // Stats Calculation
-  const heroMaxHp = (hero.stats?.stamina || 50) * HP_MULTIPLIER;
-  const villainMaxHp = (villain.stats?.stamina || 50) * HP_MULTIPLIER;
+  // Stats
+  const leftMaxHp = (hero.stats?.stamina || 50) * HP_MULTIPLIER;
+  const rightMaxHp = (villain.stats?.stamina || 50) * HP_MULTIPLIER;
 
-  // Battle State
-  const [heroHp, setHeroHp] = useState(heroMaxHp);
-  const [villainHp, setVillainHp] = useState(villainMaxHp);
+  // State
+  const [leftHp, setLeftHp] = useState(leftMaxHp);
+  const [rightHp, setRightHp] = useState(rightMaxHp);
   const [turn, setTurn] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
-  const [attacker, setAttacker] = useState<Role | null>(null);
+  const [actingSide, setActingSide] = useState<Side | null>(null); // Who is attacking now
   
-  // Visual Effects State
+  // Visuals
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
-  const [hitFlash, setHitFlash] = useState<Role | null>(null);
+  const [hitFlash, setHitFlash] = useState<Side | null>(null);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,20 +46,20 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     }
   }, [logs]);
 
-  // Turn Logic Loop
+  // Turn Loop
   useEffect(() => {
     if (isFinished) return;
 
     const timer = setTimeout(() => {
       handleTurn();
-    }, 1500); // 1.5s per turn normal speed
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, [turn, isFinished]);
 
-  const addFloatingText = (role: Role, text: string, type: 'damage' | 'crit' | 'glancing') => {
+  const addFloatingText = (side: Side, text: string, type: 'damage' | 'crit' | 'glancing') => {
     const id = Date.now() + Math.random();
-    setFloatingTexts(prev => [...prev, { id, role, text, type }]);
+    setFloatingTexts(prev => [...prev, { id, side, text, type }]);
     setTimeout(() => {
       setFloatingTexts(prev => prev.filter(ft => ft.id !== id));
     }, 800);
@@ -66,24 +68,23 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   const handleTurn = () => {
     if (isFinished) return;
 
-    const isHeroTurn = turn % 2 === 0;
-    const attackerRole = isHeroTurn ? Role.HERO : Role.VILLAIN;
-    const defenderRole = isHeroTurn ? Role.VILLAIN : Role.HERO;
-    const attackerChar = isHeroTurn ? hero : villain;
-    const defenderChar = isHeroTurn ? villain : hero;
+    const isLeftTurn = turn % 2 === 0;
+    const attackerSide = isLeftTurn ? 'left' : 'right';
+    const defenderSide = isLeftTurn ? 'right' : 'left';
+    
+    const attackerChar = isLeftTurn ? hero : villain;
+    const defenderChar = isLeftTurn ? villain : hero;
 
-    setAttacker(attackerRole);
+    setActingSide(attackerSide);
 
-    // Calculate Damage Logic
-    // Adjust damage scale if needed based on HP multiplier, but battleLogic returns roughly 5-40 damage.
-    // With 500 HP, 40 damage is 8%. Battles will last longer (~10-15 turns).
+    // Calculate Damage
     const result = calculateBattleDamage(attackerChar, defenderChar);
     const damage = result.damage;
 
-    // Trigger Visuals
+    // Visuals
     setTimeout(() => {
-       if (isFinished) return; // Prevent visuals if skipped
-       setHitFlash(defenderRole);
+       if (isFinished) return;
+       setHitFlash(defenderSide);
        
        let floatType: 'damage' | 'crit' | 'glancing' = 'damage';
        let floatText = `-${damage}`;
@@ -96,31 +97,33 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
          floatText = `Glancing -${damage}`;
        }
        
-       addFloatingText(defenderRole, floatText, floatType);
+       addFloatingText(defenderSide, floatText, floatType);
     }, 200);
 
     // Apply Damage
     setTimeout(() => {
         if (isFinished) return;
 
-        const newHp = isHeroTurn 
-          ? Math.max(0, villainHp - damage) 
-          : Math.max(0, heroHp - damage);
-        
-        if (isHeroTurn) setVillainHp(newHp);
-        else setHeroHp(newHp);
+        if (isLeftTurn) {
+            setRightHp(prev => Math.max(0, prev - damage));
+        } else {
+            setLeftHp(prev => Math.max(0, prev - damage));
+        }
 
         const logMsg = getBattleFlavorText(attackerChar.name, defenderChar.name, result);
         setLogs(prev => [...prev, `[Turn ${turn + 1}] ${logMsg}`]);
 
-        if (newHp === 0) {
+        // Check Death (Using updated values logic simulation)
+        const newDefenderHp = isLeftTurn ? Math.max(0, rightHp - damage) : Math.max(0, leftHp - damage);
+
+        if (newDefenderHp === 0) {
             setIsFinished(true);
             setTimeout(() => {
                 onComplete(attackerChar, defenderChar, [...logs, `[Turn ${turn + 1}] ${logMsg}`]);
             }, 2000);
         } else {
             setTurn(prev => prev + 1);
-            setAttacker(null);
+            setActingSide(null);
             setHitFlash(null);
         }
     }, 500);
@@ -128,47 +131,65 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
 
   const handleSkip = () => {
     if (isFinished) return;
-    setIsFinished(true); // Stop loop
+    setIsFinished(true);
 
-    let currentHeroHp = heroHp;
-    let currentVillainHp = villainHp;
+    let currentLeftHp = leftHp;
+    let currentRightHp = rightHp;
     let currentTurn = turn;
     let newLogs: string[] = [];
 
-    // Simulate instant battle
-    while (currentHeroHp > 0 && currentVillainHp > 0) {
-        const isHeroTurn = currentTurn % 2 === 0;
-        const attackerChar = isHeroTurn ? hero : villain;
-        const defenderChar = isHeroTurn ? villain : hero;
+    while (currentLeftHp > 0 && currentRightHp > 0) {
+        const isLeftTurn = currentTurn % 2 === 0;
+        const attackerChar = isLeftTurn ? hero : villain;
+        const defenderChar = isLeftTurn ? villain : hero;
         
         const result = calculateBattleDamage(attackerChar, defenderChar);
         const damage = result.damage;
-        
         const logMsg = getBattleFlavorText(attackerChar.name, defenderChar.name, result);
+        
         newLogs.push(`[Turn ${currentTurn + 1}] ${logMsg} (-${damage})`);
 
-        if (isHeroTurn) {
-            currentVillainHp = Math.max(0, currentVillainHp - damage);
+        if (isLeftTurn) {
+            currentRightHp = Math.max(0, currentRightHp - damage);
         } else {
-            currentHeroHp = Math.max(0, currentHeroHp - damage);
+            currentLeftHp = Math.max(0, currentLeftHp - damage);
         }
         currentTurn++;
     }
 
-    // Final Update
-    setHeroHp(currentHeroHp);
-    setVillainHp(currentVillainHp);
+    setLeftHp(currentLeftHp);
+    setRightHp(currentRightHp);
     setLogs(prev => [...prev, ...newLogs]);
     setTurn(currentTurn);
 
-    // Determine Winner
-    const winner = currentHeroHp > 0 ? hero : villain;
-    const loser = currentHeroHp > 0 ? villain : hero;
+    const winner = currentLeftHp > 0 ? hero : villain;
+    const loser = currentLeftHp > 0 ? villain : hero;
 
     setTimeout(() => {
         onComplete(winner, loser, [...logs, ...newLogs]);
     }, 1000);
   };
+
+  // Helper for role styles
+  const getRoleColor = (role: Role) => {
+    switch (role) {
+      case Role.HERO: return 'text-blue-400 border-blue-500 shadow-blue-500/50';
+      case Role.VILLAIN: return 'text-red-400 border-red-500 shadow-red-500/50';
+      case Role.CIVILIAN: return 'text-green-400 border-green-500 shadow-green-500/50';
+      default: return 'text-gray-400 border-gray-500';
+    }
+  };
+
+  const getRoleIcon = (role: Role) => {
+    switch (role) {
+        case Role.HERO: return <Shield className="w-4 h-4" />;
+        case Role.VILLAIN: return <Skull className="w-4 h-4" />;
+        case Role.CIVILIAN: return <User className="w-4 h-4" />;
+    }
+  };
+
+  const leftStyle = getRoleColor(hero.role);
+  const rightStyle = getRoleColor(villain.role);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
@@ -203,33 +224,35 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
         <div className="flex-1 p-6 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 bg-[url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center relative">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
 
-          {/* Hero Side */}
-          <div className={`relative z-10 flex flex-col items-center w-full md:w-1/3 transition-all duration-300 ${attacker === Role.HERO ? 'scale-110' : ''}`}>
-             <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-blue-500 overflow-hidden shadow-[0_0_30px_rgba(59,130,246,0.5)] bg-slate-800 ${hitFlash === Role.HERO ? 'animate-shake bg-red-500/50' : ''}`}>
+          {/* Left Side (Hero Position) */}
+          <div className={`relative z-10 flex flex-col items-center w-full md:w-1/3 transition-all duration-300 ${actingSide === 'left' ? 'scale-110 z-20' : 'z-10'}`}>
+             <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] bg-slate-800 transition-colors duration-200
+               ${leftStyle.split(' ').filter(c => c.startsWith('border')).join(' ')} 
+               ${hitFlash === 'left' ? 'animate-shake bg-red-500/50' : ''}`}>
                 <img src={hero.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${hero.id}`} className="w-full h-full object-cover" />
-                {heroHp === 0 && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-red-500 font-bold text-2xl rotate-12">DEFEAT</div>}
+                {leftHp === 0 && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-red-500 font-bold text-2xl rotate-12">DEFEAT</div>}
              </div>
              
-             {/* Hero HP Bar */}
+             {/* Left HP Bar */}
              <div className="w-full mt-4 bg-gray-700 rounded-full h-4 overflow-hidden border border-gray-600 relative">
                <div 
-                 className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-300" 
-                 style={{ width: `${(heroHp / heroMaxHp) * 100}%` }}
+                 className={`h-full transition-all duration-300 ${hero.role === Role.VILLAIN ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-blue-600 to-blue-400'}`}
+                 style={{ width: `${(leftHp / leftMaxHp) * 100}%` }}
                ></div>
                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">
-                 {Math.ceil(heroHp)} / {heroMaxHp}
+                 {Math.ceil(leftHp)} / {leftMaxHp}
                </span>
              </div>
              
              <div className="mt-2 text-center">
-               <div className="font-bold text-blue-400 text-lg flex items-center justify-center gap-2">
-                 <Shield className="w-4 h-4" /> {hero.name}
+               <div className={`font-bold text-lg flex items-center justify-center gap-2 ${leftStyle.split(' ').find(c => c.startsWith('text-'))}`}>
+                 {getRoleIcon(hero.role)} {hero.name}
                </div>
-               <div className="text-xs text-gray-400">HERO</div>
+               <div className="text-xs text-gray-400">{hero.role}</div>
              </div>
 
-             {/* Floating Text */}
-             {floatingTexts.filter(t => t.role === Role.HERO).map(t => (
+             {/* Floating Text Left */}
+             {floatingTexts.filter(t => t.side === 'left').map(t => (
                <div key={t.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl font-black animate-float-up pointer-events-none whitespace-nowrap
                  ${t.type === 'crit' ? 'text-yellow-400 text-3xl' : t.type === 'glancing' ? 'text-gray-400 text-lg' : 'text-red-500'}
                `}>
@@ -243,33 +266,35 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
              <div className="text-4xl md:text-6xl font-black text-white/20 italic">VS</div>
           </div>
 
-          {/* Villain Side */}
-          <div className={`relative z-10 flex flex-col items-center w-full md:w-1/3 transition-all duration-300 ${attacker === Role.VILLAIN ? 'scale-110' : ''}`}>
-             <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-red-500 overflow-hidden shadow-[0_0_30px_rgba(239,68,68,0.5)] bg-slate-800 ${hitFlash === Role.VILLAIN ? 'animate-shake bg-red-500/50' : ''}`}>
+          {/* Right Side (Villain Position) */}
+          <div className={`relative z-10 flex flex-col items-center w-full md:w-1/3 transition-all duration-300 ${actingSide === 'right' ? 'scale-110 z-20' : 'z-10'}`}>
+             <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)] bg-slate-800 transition-colors duration-200
+               ${rightStyle.split(' ').filter(c => c.startsWith('border')).join(' ')}
+               ${hitFlash === 'right' ? 'animate-shake bg-red-500/50' : ''}`}>
                 <img src={villain.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${villain.id}`} className="w-full h-full object-cover" />
-                {villainHp === 0 && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-red-500 font-bold text-2xl rotate-12">DEFEAT</div>}
+                {rightHp === 0 && <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-red-500 font-bold text-2xl rotate-12">DEFEAT</div>}
              </div>
 
-             {/* Villain HP Bar */}
+             {/* Right HP Bar */}
              <div className="w-full mt-4 bg-gray-700 rounded-full h-4 overflow-hidden border border-gray-600 relative">
                <div 
-                 className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" 
-                 style={{ width: `${(villainHp / villainMaxHp) * 100}%` }}
+                 className={`h-full transition-all duration-300 ${villain.role === Role.HERO ? 'bg-gradient-to-r from-blue-600 to-blue-400' : 'bg-gradient-to-r from-red-600 to-red-400'}`} 
+                 style={{ width: `${(rightHp / rightMaxHp) * 100}%` }}
                ></div>
                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">
-                 {Math.ceil(villainHp)} / {villainMaxHp}
+                 {Math.ceil(rightHp)} / {rightMaxHp}
                </span>
              </div>
 
              <div className="mt-2 text-center">
-               <div className="font-bold text-red-400 text-lg flex items-center justify-center gap-2">
-                 <Skull className="w-4 h-4" /> {villain.name}
+               <div className={`font-bold text-lg flex items-center justify-center gap-2 ${rightStyle.split(' ').find(c => c.startsWith('text-'))}`}>
+                 {getRoleIcon(villain.role)} {villain.name}
                </div>
-               <div className="text-xs text-gray-400">VILLAIN</div>
+               <div className="text-xs text-gray-400">{villain.role}</div>
              </div>
 
-             {/* Floating Text */}
-             {floatingTexts.filter(t => t.role === Role.VILLAIN).map(t => (
+             {/* Floating Text Right */}
+             {floatingTexts.filter(t => t.side === 'right').map(t => (
                <div key={t.id} className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full text-2xl font-black animate-float-up pointer-events-none whitespace-nowrap
                  ${t.type === 'crit' ? 'text-yellow-400 text-3xl' : t.type === 'glancing' ? 'text-gray-400 text-lg' : 'text-red-500'}
                `}>

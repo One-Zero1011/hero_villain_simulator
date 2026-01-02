@@ -87,9 +87,37 @@ export const useGameEngine = () => {
   };
 
   const handleNextDay = useCallback(() => {
-    // 1. Check for Battle Probability (50% chance if both Hero and Villain exist)
-    const heroes = characters.filter(c => c.role === Role.HERO && c.status === Status.NORMAL);
-    const villains = characters.filter(c => c.role === Role.VILLAIN && c.status === Status.NORMAL);
+    // 1. Identify active characters
+    const activeChars = characters.filter(c => c.status !== Status.DEAD);
+    const insaneChars = activeChars.filter(c => c.isInsane);
+    
+    // 2. Insanity Battle Trigger (High Priority)
+    // If there is an insane character, they have a high chance to attack ANYONE.
+    if (insaneChars.length > 0 && activeChars.length > 1 && Math.random() < 0.7) {
+      const attacker = insaneChars[Math.floor(Math.random() * insaneChars.length)];
+      // Can attack anyone except self
+      const potentialTargets = activeChars.filter(c => c.id !== attacker.id);
+      
+      if (potentialTargets.length > 0) {
+        const defender = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+        
+        // Use existing battle structure but logs will indicate insanity
+        setCurrentBattle({ hero: attacker, villain: defender }); // Note: 'hero' prop just means attacker here visually
+        
+        setLogs(prev => [...prev, {
+          id: generateId(),
+          day: day + 1,
+          message: `[광기] 이성을 잃은 ${attacker.name}이(가) 피아식별 없이 ${defender.name}을(를) 공격합니다!`,
+          type: 'INSANITY',
+          timestamp: Date.now()
+        }]);
+        return;
+      }
+    }
+
+    // 3. Normal Battle Probability (50% chance if both Hero and Villain exist)
+    const heroes = activeChars.filter(c => c.role === Role.HERO && c.status === Status.NORMAL);
+    const villains = activeChars.filter(c => c.role === Role.VILLAIN && c.status === Status.NORMAL);
 
     if (heroes.length > 0 && villains.length > 0 && Math.random() < 0.5) {
       // Start Battle Mode
@@ -108,9 +136,15 @@ export const useGameEngine = () => {
 
     // Update Characters immutably
     const updatedChars = characters.map(char => {
+      // Sanity damage for both participants due to stress of battle
+      const sanityDamage = Math.floor(Math.random() * 15) + 5; 
+      let newSanity = char.currentSanity ?? ((char.stats?.intelligence || 50) * 2);
+      newSanity = Math.max(0, newSanity - sanityDamage);
+
       if (char.id === winner.id) {
         return {
           ...char,
+          currentSanity: newSanity,
           battlesWon: char.battlesWon + 1,
           power: Math.min(100, char.power + 2) // Cap at 100
         };
@@ -118,34 +152,37 @@ export const useGameEngine = () => {
       if (char.id === loser.id) {
         return {
           ...char,
+          currentSanity: Math.max(0, newSanity - 10), // Loser loses more sanity
           status: isDeath ? Status.DEAD : Status.INJURED
         };
       }
       return char;
     });
 
-    // Update Resources (Winner takes money)
-    setFactionResources(prev => {
-      const reward = 1000 + Math.floor(Math.random() * 500);
-      return {
-        ...prev,
-        [winner.role]: {
-          ...prev[winner.role],
-          money: prev[winner.role].money + reward
-        }
-      };
-    });
+    // Update Resources (Winner takes money - only if standard roles, ignore for insanity frenzy for simplicity or keep it)
+    if (winner.role !== Role.CIVILIAN) { // Civilians usually don't loot, but let's keep logic simple
+      setFactionResources(prev => {
+        const reward = 1000 + Math.floor(Math.random() * 500);
+        return {
+          ...prev,
+          [winner.role]: {
+            ...prev[winner.role],
+            money: prev[winner.role].money + reward
+          }
+        };
+      });
+    }
     
     // Create Log Entries
     const battleLogs: LogEntry[] = [
       {
         id: generateId(),
         day: day + 1,
-        message: `⚔️ 긴급 속보! ${winner.name}와(과) ${loser.name}의 치열한 전투가 벌어졌습니다!`,
+        message: `⚔️ 전투 종료! ${winner.name}의 승리!`,
         type: 'BATTLE',
         timestamp: Date.now()
       },
-      ...battleLogTexts.slice(-3).map((text) => ({ // Add last 3 lines of combat log to main log
+      ...battleLogTexts.slice(-3).map((text) => ({ // Add last 3 lines of combat log
         id: generateId(),
         day: day + 1,
         message: `> ${text}`,
@@ -157,7 +194,7 @@ export const useGameEngine = () => {
         day: day + 1,
         message: isDeath 
           ? `전투 결과: ${loser.name}이(가) 치명상을 입고 사망했습니다...` 
-          : `전투 결과: ${loser.name}이(가) 큰 부상을 입고 후퇴했습니다.`,
+          : `전투 결과: ${loser.name}이(가) 큰 부상을 입고 쓰러졌습니다.`,
         type: isDeath ? 'DEATH' : 'INFO',
         timestamp: Date.now()
       }
@@ -201,7 +238,11 @@ export const useGameEngine = () => {
           if (updatedChar.stats) {
             updatedChar.stats = { ...updatedChar.stats, stamina: newStamina };
           }
-          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력을 ${healAmount} 회복했습니다.`;
+          // Restore Sanity slightly with heal items
+          const maxSanity = (updatedChar.stats?.intelligence || 50) * 2;
+          updatedChar.currentSanity = Math.min(maxSanity, (updatedChar.currentSanity || maxSanity) + 10);
+          
+          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력과 정신력을 회복했습니다.`;
         }
         break;
 
@@ -276,6 +317,10 @@ export const useGameEngine = () => {
   };
 
   const handleAddCharacter = (newCharData: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'>) => {
+    // Sanity Initialization
+    const intelligence = newCharData.stats?.intelligence || 50;
+    const maxSanity = intelligence * 2;
+
     const newChar: Character = {
       id: generateId(),
       ...newCharData,
@@ -283,6 +328,8 @@ export const useGameEngine = () => {
       kills: 0,
       saves: 0,
       battlesWon: 0,
+      currentSanity: maxSanity,
+      isInsane: false,
       housing: { themeId: 'default_room', items: [] } // Init empty housing
     };
     

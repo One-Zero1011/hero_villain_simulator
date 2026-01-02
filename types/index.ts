@@ -81,6 +81,10 @@ export interface Character {
   stats?: Stats;
   superpower?: string;
   
+  // Mental State
+  currentSanity?: number; // 현재 정신력 (Max = intelligence * 2)
+  isInsane?: boolean;     // 정신 착란 상태 여부
+
   // Social
   relationships: Relationship[];
   
@@ -116,7 +120,7 @@ export interface LogEntry {
   id: string;
   day: number;
   message: string;
-  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION';
+  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY';
   timestamp: number;
 }
 
