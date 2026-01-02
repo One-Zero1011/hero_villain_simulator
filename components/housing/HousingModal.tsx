@@ -27,6 +27,23 @@ const getIcon = (iconName: string, className: string) => {
   return icons[iconName] || <Box className={className} />;
 };
 
+const getActionClass = (itemId: string) => {
+  switch(itemId) {
+    case 'sofa': 
+    case 'armchair': return 'animate-sit';
+    case 'bed': return 'animate-sleep';
+    case 'pc': return 'animate-type';
+    case 'weapon': return 'animate-attack';
+    case 'target': return 'animate-punch';
+    case 'coffee': return 'animate-drink';
+    case 'tv': return 'animate-watch';
+    case 'cat': 
+    case 'plant': return 'animate-bob';
+    case 'safe': return 'animate-shake-fast';
+    default: return 'animate-bob';
+  }
+};
+
 // --- Types for Physics ---
 
 interface PhysicsState {
@@ -34,6 +51,7 @@ interface PhysicsState {
   target: { x: number, y: number };
   isWaiting: boolean;
   isInteracting: boolean;
+  interactingItemId?: string | null; // Currently interacting item ID
   lastSocialTime: number; // Cooldown for talking to others
   lastFurnitureTime: number; // Cooldown for furniture
 }
@@ -132,6 +150,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         target: { x: 50, y: 50 },
         isWaiting: false,
         isInteracting: false,
+        interactingItemId: null,
         lastSocialTime: Date.now() + 2000, // Initial delay
         lastFurnitureTime: Date.now() + Math.random() * 5000
       });
@@ -182,6 +201,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         target: { x: 50, y: 50 },
         isWaiting: false,
         isInteracting: false,
+        interactingItemId: null,
         lastSocialTime: Date.now(),
         lastFurnitureTime: Date.now()
       });
@@ -256,9 +276,15 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                   if (def) {
                     const text = def.interactions[Math.floor(Math.random() * def.interactions.length)];
                     state.isInteracting = true;
+                    state.interactingItemId = item.itemId; // Set Interaction Item
                     state.lastFurnitureTime = now;
                     triggerChat(char.id, text, 'FURNITURE');
-                    setTimeout(() => { state!.isInteracting = false; }, 3000);
+                    setTimeout(() => { 
+                      if (state) {
+                        state.isInteracting = false; 
+                        state.interactingItemId = null; // Clear
+                      }
+                    }, 3000);
                   }
                 }
               }
@@ -285,11 +311,17 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                    
                    // Both chars interact
                    state.isInteracting = true;
+                   state.interactingItemId = 'SOCIAL';
                    state.lastSocialTime = now;
                    triggerChat(char.id, actionText, 'SOCIAL');
                    
                    // Simplified: Just lock current char
-                   setTimeout(() => { state!.isInteracting = false; }, 3000);
+                   setTimeout(() => { 
+                     if (state) {
+                       state.isInteracting = false; 
+                       state.interactingItemId = null;
+                     }
+                   }, 3000);
                    break; // Talk to one person at a time
                 }
               }
@@ -359,6 +391,19 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
             const bubble = chatBubbles.find(b => b.charId === char.id);
             const isOwner = char.id === character.id;
             
+            // Calculate Interaction Class
+            const physicsState = physicsRefs.current.get(char.id);
+            const interactingId = physicsState?.interactingItemId;
+            let actionClass = '';
+
+            if (interactingId === 'SOCIAL') {
+              actionClass = 'animate-bob';
+            } else if (interactingId) {
+              actionClass = getActionClass(interactingId);
+            } else if (bubble) {
+              actionClass = 'animate-shake';
+            }
+            
             return (
               <div 
                 key={char.id}
@@ -383,9 +428,9 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                   </div>
                 )}
 
-                <div className={`w-16 h-16 rounded-full border-4 shadow-xl flex items-center justify-center overflow-hidden relative bg-slate-200
+                <div className={`w-16 h-16 rounded-full border-4 shadow-xl flex items-center justify-center overflow-hidden relative bg-slate-200 transition-transform
                   ${isOwner ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)]' : 'border-white'}
-                  ${bubble ? 'animate-shake' : ''}
+                  ${actionClass}
                 `}>
                    <img 
                     src={char.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${char.id}`} 
@@ -535,6 +580,78 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         }
         .animate-shake {
           animation: shake 0.5s ease-in-out infinite;
+        }
+        
+        .animate-sit {
+          transform: translate(-50%, -50%) scale(0.9) translateY(5px);
+          transition: transform 0.5s ease-in-out;
+        }
+        
+        .animate-sleep {
+          transform: translate(-50%, -50%) rotate(90deg) scale(0.9);
+          transition: transform 0.8s ease-in-out;
+        }
+        
+        @keyframes type {
+          0% { transform: translate(-50%, -50%) translateX(0); }
+          25% { transform: translate(-50%, -50%) translateX(-2px); }
+          75% { transform: translate(-50%, -50%) translateX(2px); }
+          100% { transform: translate(-50%, -50%) translateX(0); }
+        }
+        .animate-type {
+          animation: type 0.1s infinite;
+        }
+        
+        @keyframes attack {
+          0% { transform: translate(-50%, -50%) rotate(0); }
+          50% { transform: translate(-50%, -50%) rotate(-20deg) scale(1.1); }
+          100% { transform: translate(-50%, -50%) rotate(0); }
+        }
+        .animate-attack {
+          animation: attack 0.5s infinite;
+        }
+        
+        @keyframes punch {
+          0% { transform: translate(-50%, -50%) translateX(0); }
+          50% { transform: translate(-50%, -50%) translateX(10px) rotate(5deg); }
+          100% { transform: translate(-50%, -50%) translateX(0); }
+        }
+        .animate-punch {
+          animation: punch 0.3s infinite;
+        }
+        
+        @keyframes drink {
+          0% { transform: translate(-50%, -50%) rotate(0); }
+          50% { transform: translate(-50%, -50%) rotate(-10deg) translateY(-5px); }
+          100% { transform: translate(-50%, -50%) rotate(0); }
+        }
+        .animate-drink {
+          animation: drink 1.5s infinite ease-in-out;
+        }
+        
+        @keyframes watch {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.05); }
+        }
+        .animate-watch {
+          animation: watch 2s infinite ease-in-out;
+        }
+        
+        @keyframes bob {
+          0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+          50% { transform: translate(-50%, -50%) translateY(-5px); }
+        }
+        .animate-bob {
+          animation: bob 1s infinite ease-in-out;
+        }
+        
+        @keyframes shake-fast {
+          0%, 100% { transform: translate(-50%, -50%) rotate(0); }
+          25% { transform: translate(-50%, -50%) rotate(2deg); }
+          75% { transform: translate(-50%, -50%) rotate(-2deg); }
+        }
+        .animate-shake-fast {
+          animation: shake-fast 0.2s infinite;
         }
       `}</style>
     </div>
