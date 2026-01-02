@@ -1,11 +1,11 @@
 
 import React, { useState, useRef } from 'react';
 import { Character, Role, Gender, Stats, Relationship } from '../../types/index';
-import { MBTI_TYPES, SUPERPOWERS, RELATIONSHIP_TYPES } from '../../data/options';
+import { MBTI_TYPES, SUPERPOWERS, RELATIONSHIP_TYPES, PERSONALITY_TYPES } from '../../data/options';
 import { 
   X, UserPlus, Plus, Trash2, Shield, Skull, User, 
   Image as ImageIcon, Upload, Link as LinkIcon, 
-  ArrowRight, ArrowLeftRight, Dice5 
+  ArrowRight, ArrowLeftRight, Dice5, Eye, EyeOff 
 } from 'lucide-react';
 
 interface Props {
@@ -22,7 +22,11 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
   const [gender, setGender] = useState<Gender>('남성');
   const [age, setAge] = useState(20);
   const [mbti, setMbti] = useState(MBTI_TYPES[0]);
+  const [personality, setPersonality] = useState(''); // 성격 (선택)
   const [imageUrl, setImageUrl] = useState('');
+
+  // Hero Specific
+  const [isIdentityRevealed, setIsIdentityRevealed] = useState(false);
 
   // Hero/Villain Specific
   const [superpower, setSuperpower] = useState(SUPERPOWERS[0]);
@@ -74,6 +78,16 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
     setAge(Math.floor(Math.random() * 50) + 15); // 15-65
     setMbti(MBTI_TYPES[Math.floor(Math.random() * MBTI_TYPES.length)]);
     
+    // Random Personality
+    if (Math.random() < 0.2) {
+        setPersonality('');
+    } else {
+        setPersonality(PERSONALITY_TYPES[Math.floor(Math.random() * PERSONALITY_TYPES.length)]);
+    }
+
+    // Identity revealed chance (10%)
+    setIsIdentityRevealed(Math.random() < 0.1);
+
     // DiceBear Avatar
     const seed = Math.random().toString(36).substring(7);
     setImageUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`);
@@ -142,6 +156,8 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
       gender,
       age,
       mbti,
+      personality: personality || undefined, 
+      isIdentityRevealed: role === Role.HERO ? isIdentityRevealed : undefined,
       imageUrl,
       power,
       relationships,
@@ -161,6 +177,9 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
     setRole(Role.HERO);
     setGender('남성');
     setAge(20);
+    setMbti(MBTI_TYPES[0]);
+    setPersonality('');
+    setIsIdentityRevealed(false);
     setStats({ strength: 50, intelligence: 50, stamina: 50, luck: 50 });
     setImageUrl('');
     setRelationships([]);
@@ -278,7 +297,18 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-2">
+                  {role === Role.HERO && (
+                    <div className="flex items-center gap-2 bg-[#2a2a2a] border border-[#404040] p-2 rounded cursor-pointer" onClick={() => setIsIdentityRevealed(!isIdentityRevealed)}>
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${isIdentityRevealed ? 'bg-blue-500 border-blue-500' : 'border-gray-500'}`}>
+                        {isIdentityRevealed && <div className="w-2 h-2 bg-white rounded-sm" />}
+                      </div>
+                      <span className={`text-xs ${isIdentityRevealed ? 'text-blue-300' : 'text-gray-400'}`}>
+                        {isIdentityRevealed ? '대중에게 정체가 알려짐 (공인)' : '비밀 신분 유지 (정체 숨김)'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-2">
                      <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1">성별</label>
                         <select 
@@ -300,6 +330,9 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                           className="w-full bg-[#2a2a2a] border border-[#404040] rounded px-2 py-2 text-white text-sm outline-none"
                         />
                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
                      <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1">MBTI</label>
                         <select 
@@ -308,6 +341,17 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                           className="w-full bg-[#2a2a2a] border border-[#404040] rounded px-2 py-2 text-white text-sm outline-none"
                         >
                           {MBTI_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                     </div>
+                     <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">성격 (선택)</label>
+                        <select 
+                          value={personality} 
+                          onChange={(e) => setPersonality(e.target.value)}
+                          className="w-full bg-[#2a2a2a] border border-[#404040] rounded px-2 py-2 text-white text-sm outline-none"
+                        >
+                          <option value="">선택 안 함</option>
+                          {PERSONALITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                      </div>
                   </div>

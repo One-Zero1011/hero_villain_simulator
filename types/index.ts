@@ -12,6 +12,16 @@ export enum Status {
   DEAD = 'DEAD'
 }
 
+// Role combinations for relationship interactions
+export type RolePairKey = 
+  | 'HERO_HERO' 
+  | 'VILLAIN_VILLAIN' 
+  | 'CIVILIAN_CIVILIAN' 
+  | 'HERO_VILLAIN' 
+  | 'CIVILIAN_HERO' 
+  | 'CIVILIAN_VILLAIN' 
+  | 'COMMON';
+
 export type Gender = '남성' | '여성' | '기타';
 
 export interface Stats {
@@ -25,7 +35,7 @@ export interface Relationship {
   targetId: string;
   targetName: string;
   type: string;
-  isMutual?: boolean; // Added for bidirectional check
+  isMutual?: boolean;
 }
 
 export interface HousingItem {
@@ -35,9 +45,9 @@ export interface HousingItem {
   description: string;
 }
 
-// New interface for items placed in the room
+// 가구 배치 정보 (좌표 포함)
 export interface PlacedHousingItem {
-  uuid: string; // Unique instance ID for handling multiple of same item
+  uuid: string; // 고유 인스턴스 ID
   itemId: string;
   x: number; // Percentage 0-100
   y: number; // Percentage 0-100
@@ -45,7 +55,7 @@ export interface PlacedHousingItem {
 
 export interface Housing {
   themeId: string;
-  items: PlacedHousingItem[]; // Changed from string[] to object array
+  items: PlacedHousingItem[];
 }
 
 export interface Character {
@@ -61,7 +71,11 @@ export interface Character {
   gender: Gender;
   age: number;
   mbti: string;
+  personality?: string; // 성격 (선택사항)
   
+  // Identity (Hero Specific)
+  isIdentityRevealed?: boolean;
+
   // Stats & Abilities
   power: number;
   stats?: Stats;
@@ -83,13 +97,13 @@ export type EffectType = 'HEAL' | 'BUFF_STRENGTH' | 'BUFF_LUCK' | 'GAMBLE_MONEY'
 export interface Item {
   id: string;
   name: string;
-  icon: string; // Lucide icon name or emoji
+  icon: string; 
   count: number;
   description?: string;
   price?: number; 
   role?: Role | 'COMMON';
-  effectType?: EffectType; // Added
-  effectValue?: number;    // Added
+  effectType?: EffectType; 
+  effectValue?: number;    
 }
 
 export interface FactionResources {

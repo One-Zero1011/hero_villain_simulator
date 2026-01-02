@@ -38,15 +38,15 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     }
   }, [logs]);
 
+  // Turn Logic Loop
   useEffect(() => {
     if (isFinished) return;
 
-    // First turn delay or next turn delay
-    const intervalId = setInterval(() => {
+    const timer = setTimeout(() => {
       handleTurn();
     }, 1500);
 
-    return () => clearInterval(intervalId);
+    return () => clearTimeout(timer);
   }, [turn, isFinished]);
 
   const addFloatingText = (role: Role, text: string, type: 'damage' | 'crit' | 'glancing') => {
@@ -281,6 +281,6 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
       `}</style>
     </div>
   );
-};
+}
 
 export default BattleArena;

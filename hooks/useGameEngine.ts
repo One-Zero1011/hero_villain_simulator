@@ -1,11 +1,11 @@
 
 import { useState, useCallback } from 'react';
-import { Character, LogEntry, Role, Status, Housing, FactionResources } from '../types/index';
+import { Character, LogEntry, Role, Status, Housing, FactionResources, Item } from '../types/index';
 import { processDailyEvents } from '../services/simulationService';
 import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
 
-// Updated Initial Characters to match new interface
+// Updated Initial Characters
 const INITIAL_CHARACTERS: Character[] = [
   { 
     id: '1', 
@@ -15,6 +15,8 @@ const INITIAL_CHARACTERS: Character[] = [
     gender: '남성',
     age: 32,
     mbti: 'ENFJ',
+    personality: '정의로운',
+    isIdentityRevealed: false, // Default hidden
     power: 88, 
     stats: { strength: 90, intelligence: 70, stamina: 95, luck: 80 },
     superpower: '초괴력 (Super Strength)',
@@ -35,6 +37,7 @@ const INITIAL_CHARACTERS: Character[] = [
     gender: '남성',
     age: 45,
     mbti: 'INTJ',
+    personality: '오만한',
     power: 92, 
     stats: { strength: 70, intelligence: 100, stamina: 80, luck: 60 },
     superpower: '천재적 지능 (Super Intelligence)',
@@ -55,6 +58,7 @@ const INITIAL_CHARACTERS: Character[] = [
     gender: '남성',
     age: 28,
     mbti: 'ISFP',
+    personality: '소심한',
     power: 5, 
     relationships: [],
     kills: 0, 
@@ -67,8 +71,8 @@ const INITIAL_CHARACTERS: Character[] = [
   },
 ];
 
-// Helper to create initial items
-const createItem = (id: string, count: number) => {
+// Helper to create initial items safely
+const createItem = (id: string, count: number): Item | null => {
   const def = GAME_ITEMS.find(i => i.id === id);
   if (!def) return null;
   return {
@@ -92,7 +96,7 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
       createItem('h_potion', 2),
       createItem('com_water', 10),
       createItem('com_lunchbox', 5)
-    ].filter(i => i !== null) as any
+    ].filter((i): i is Item => i !== null)
   },
   [Role.VILLAIN]: {
     money: 120000,
@@ -101,7 +105,7 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
       createItem('v_serum', 1),
       createItem('com_water', 20),
       createItem('com_bandaid', 10)
-    ].filter(i => i !== null) as any
+    ].filter((i): i is Item => i !== null)
   },
   [Role.CIVILIAN]: {
     money: 3500,
@@ -110,7 +114,7 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
       createItem('com_water', 2),
       createItem('com_bandaid', 3),
       createItem('com_lunchbox', 1)
-    ].filter(i => i !== null) as any
+    ].filter((i): i is Item => i !== null)
   }
 };
 
@@ -420,7 +424,7 @@ export const useGameEngine = () => {
   return {
     day,
     characters,
-    factionResources, // Exported
+    factionResources,
     logs,
     currentBattle,
     housingModalChar,
@@ -433,6 +437,6 @@ export const useGameEngine = () => {
     handleHousingSave,
     handleReset,
     handleBattleComplete,
-    handleUseItem // New Export
+    handleUseItem
   };
 };

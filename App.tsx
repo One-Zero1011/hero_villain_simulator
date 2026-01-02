@@ -7,7 +7,8 @@ import AddCharacterModal from './components/character/AddCharacterModal';
 import CharacterSection from './components/character/CharacterSection';
 import BattleArena from './components/battle/BattleArena';
 import HousingModal from './components/housing/HousingModal';
-import InventoryModal from './components/inventory/InventoryModal'; // Added import
+import InventoryModal from './components/inventory/InventoryModal';
+import RelationshipMapModal from './components/relationships/RelationshipMapModal'; // Imported
 import GameLayout from './components/layout/GameLayout';
 import Sidebar from './components/layout/Sidebar';
 
@@ -33,6 +34,9 @@ function App() {
 
   // Inventory Modal State
   const [inventoryModalRole, setInventoryModalRole] = useState<Role | null>(null);
+  
+  // Relationship Map Modal State
+  const [isRelMapOpen, setIsRelMapOpen] = useState(false);
 
   // Filtering characters
   const heroes = characters.filter(c => c.role === Role.HERO);
@@ -80,6 +84,13 @@ function App() {
           onUseItem={handleUseItem}
         />
       )}
+      
+      {/* Relationship Map Modal */}
+      <RelationshipMapModal 
+        characters={characters}
+        isOpen={isRelMapOpen}
+        onClose={() => setIsRelMapOpen(false)}
+      />
 
       <AddCharacterModal
         isOpen={isAddCharModalOpen}
@@ -93,6 +104,7 @@ function App() {
         characters={characters}
         logs={logs} 
         onOpenAddModal={() => setIsAddCharModalOpen(true)} 
+        onOpenRelMap={() => setIsRelMapOpen(true)} // Passed handler
       />
 
       {/* Right Content: Character Lists */}

@@ -1,4 +1,6 @@
 
+import { Role, RolePairKey } from '../types/index';
+
 // 고유 ID 생성
 export const generateId = (): string => Math.random().toString(36).substr(2, 9);
 
@@ -12,4 +14,12 @@ export const formatTemplate = (template: string, args: Record<string, string>): 
     str = str.replace(new RegExp(`\\{${key}\\}`, 'g'), args[key]);
   }
   return str;
+};
+
+// 역할 쌍 키 생성 (알파벳 순 정렬: CIVILIAN < HERO < VILLAIN)
+// 관계형 데이터 조회 시 키 불일치 방지
+export const getRoleKey = (r1: Role, r2: Role): RolePairKey => {
+  if (r1 === r2) return `${r1}_${r1}` as RolePairKey;
+  const sorted = [r1, r2].sort();
+  return `${sorted[0]}_${sorted[1]}` as RolePairKey;
 };

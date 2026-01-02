@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Character, Role, Status } from '../../types/index';
-import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle } from 'lucide-react';
+import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 
 interface Props {
   character: Character;
@@ -71,14 +71,36 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
           )}
           
           <div>
-            <h3 className="font-bold text-gray-100 leading-tight">{character.name}</h3>
-            <div className="flex gap-1 mt-1">
+            <h3 className="font-bold text-gray-100 leading-tight flex items-center gap-1">
+              {character.name}
+            </h3>
+            <div className="flex flex-wrap gap-1 mt-1">
               <span className={`text-[10px] px-1.5 py-0.5 rounded ${styles.badge}`}>
                 {character.role}
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1c1c1c] text-gray-400 border border-[#333333]">
                 {character.mbti}
               </span>
+              
+              {/* Identity Status for Heroes */}
+              {character.role === Role.HERO && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1
+                  ${character.isIdentityRevealed 
+                    ? 'bg-amber-900/40 text-amber-300 border-amber-700' 
+                    : 'bg-slate-700 text-gray-300 border-slate-600'}`
+                }>
+                  {character.isIdentityRevealed 
+                    ? <><Eye className="w-2.5 h-2.5" /> 정체 드러남</> 
+                    : <><EyeOff className="w-2.5 h-2.5" /> 정체 숨김</>
+                  }
+                </span>
+              )}
+
+              {character.personality && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#252525] text-gray-300 border border-[#404040]">
+                  #{character.personality}
+                </span>
+              )}
             </div>
           </div>
         </div>

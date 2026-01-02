@@ -1,5 +1,5 @@
 
-import { Character, Role, Status, LogEntry } from '../types/index';
+import { Character, Role, Status, LogEntry, RolePairKey } from '../types/index';
 import { 
   HERO_DAILY_EVENTS, 
   VILLAIN_DAILY_EVENTS, 
@@ -7,8 +7,9 @@ import {
   VILLAIN_ATTACK_CIVILIAN_TEMPLATES,
   RECOVERY_EVENTS
 } from '../data/events';
-import { RELATIONSHIP_EVENTS } from '../data/relationshipEvents';
-import { generateId, getRandom, formatTemplate } from '../utils/helpers';
+import { MBTI_LOGS, COMBINATION_LOGS } from '../data/mbti/index';
+import { COMBINED_RELATIONSHIP_EVENTS as RELATIONSHIP_EVENTS } from '../data/relationships/index';
+import { generateId, getRandom, formatTemplate, getRoleKey } from '../utils/helpers';
 
 export const processDailyEvents = (
   currentDay: number,
@@ -93,31 +94,63 @@ export const processDailyEvents = (
       if (!target || target.status === Status.DEAD || excludeIds.includes(target.id)) return;
 
       if (Math.random() < 0.15) {
-        const templates = RELATIONSHIP_EVENTS[rel.type];
-        if (templates && templates.length > 0) {
-          const template = getRandom(templates);
-          newLogs.push({
-            id: generateId(),
-            day: nextDay,
-            message: formatTemplate(template, { actor: actor.name, target: target.name }),
-            type: 'EVENT',
-            timestamp: Date.now()
-          });
+        const typeGroup = RELATIONSHIP_EVENTS[rel.type];
+        if (typeGroup) {
+          // Determine Role Pair Key
+          const roleKey = getRoleKey(actor.role, target.role);
+          
+          // Try specific role pair -> fallback to COMMON -> empty
+          const templates = typeGroup[roleKey] || typeGroup['COMMON'] || [];
+          
+          if (templates.length > 0) {
+            const template = getRandom(templates);
+            newLogs.push({
+              id: generateId(),
+              day: nextDay,
+              message: formatTemplate(template, { actor: actor.name, target: target.name }),
+              type: 'EVENT',
+              timestamp: Date.now()
+            });
+          }
         }
       }
     });
   });
 
-  // 4. Daily Flavor Text
+  // 4. Daily Flavor Text (Role-based, MBTI, or MBTI+Personality Combination)
   updatedCharacters.forEach(char => {
     if (char.status === Status.DEAD || excludeIds.includes(char.id)) return;
     
-    if (Math.random() < 0.15) {
+    if (Math.random() < 0.25) { // 25% Chance for a daily event
       let template = "";
-      switch (char.role) {
-        case Role.HERO: template = getRandom(HERO_DAILY_EVENTS); break;
-        case Role.VILLAIN: template = getRandom(VILLAIN_DAILY_EVENTS); break;
-        case Role.CIVILIAN: template = getRandom(CIVILIAN_DAILY_EVENTS); break;
+      
+      // Determine Event Type Strategy
+      // 1. Check for MBTI + Personality Combination (High Priority if set)
+      let combinationFound = false;
+      if (char.personality) {
+        const key = `${char.mbti}_${char.personality}`;
+        const combos = COMBINATION_LOGS[key];
+        if (combos && combos.length > 0) {
+          template = getRandom(combos);
+          combinationFound = true;
+        }
+      }
+
+      // 2. If no combination found (or no personality set), try Pure MBTI (Medium Priority)
+      if (!template && !char.personality) {
+         const mbtiLogs = MBTI_LOGS[char.mbti];
+         if (mbtiLogs && Math.random() < 0.5) { // 50% chance to show MBTI log over Role log
+            template = getRandom(mbtiLogs);
+         }
+      }
+
+      // 3. Fallback to Role-based (Standard)
+      if (!template) {
+        switch (char.role) {
+          case Role.HERO: template = getRandom(HERO_DAILY_EVENTS); break;
+          case Role.VILLAIN: template = getRandom(VILLAIN_DAILY_EVENTS); break;
+          case Role.CIVILIAN: template = getRandom(CIVILIAN_DAILY_EVENTS); break;
+        }
       }
       
       if (template) {
