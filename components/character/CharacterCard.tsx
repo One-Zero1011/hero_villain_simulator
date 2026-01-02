@@ -49,6 +49,11 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
 
   const styles = getRoleStyle(character.role);
 
+  // Derived Stats (x2 Multiplier)
+  const maxHp = (character.stats?.stamina || 0) * 2;
+  const currentHp = isInjured ? Math.round(maxHp * 0.3) : maxHp;
+  const maxMp = (character.stats?.intelligence || 0) * 2;
+
   return (
     <div className={`relative p-4 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 
       ${styles.wrapper} 
@@ -127,45 +132,43 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
           {/* New Stats Layout with Bars */}
           <div className={`bg-[#1c1c1c] p-2 rounded border space-y-2 ${isInjured ? 'border-orange-900/30' : 'border-[#333333]'}`}>
             
-            {/* Bars Section */}
+            {/* Bars Section: Represents Health/Mental Status based on Max Stats */}
             <div className="space-y-1.5">
-              {/* HP / Stamina Bar */}
-              <div className="flex items-center gap-2">
+              {/* HP / Stamina Bar (Visualizes current condition vs Max Stamina) */}
+              <div className="flex items-center gap-2" title={`체력 (최대 ${maxHp})`}>
                 <Heart className={`w-3 h-3 shrink-0 ${isInjured ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`} />
                 <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-500 ${isInjured ? 'bg-red-600 w-[20%]' : 'bg-emerald-500'}`} // Visual trick: low bar if injured
-                    style={{ width: isInjured ? '20%' : `${character.stats.stamina}%` }} 
+                    className={`h-full rounded-full transition-all duration-500 ${isInjured ? 'bg-red-600 w-[30%]' : 'bg-emerald-500 w-full'}`} 
                   />
                 </div>
-                <span className={`text-[10px] font-mono w-6 text-right ${isInjured ? 'text-red-500 font-bold' : 'text-emerald-400'}`}>
-                  {character.stats.stamina}
+                <span className={`text-[10px] font-mono w-10 text-right ${isInjured ? 'text-red-500 font-bold' : 'text-emerald-400'}`}>
+                  {currentHp} / {maxHp}
                 </span>
               </div>
 
-              {/* MP / Intelligence Bar */}
-              <div className="flex items-center gap-2">
+              {/* MP / Intelligence Bar (Visualizes Max Mental Capacity) */}
+              <div className="flex items-center gap-2" title={`지능/정신력 (최대 ${maxMp})`}>
                 <Brain className="w-3 h-3 text-blue-400 shrink-0" />
                 <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500" 
-                    style={{ width: `${character.stats.intelligence}%` }}
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500 w-full"
                   />
                 </div>
-                <span className="text-[10px] font-mono text-blue-400 w-6 text-right">{character.stats.intelligence}</span>
+                <span className="text-[10px] font-mono text-blue-400 w-10 text-right">{maxMp}</span>
               </div>
             </div>
 
             {/* Secondary Stats Grid */}
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#333333]">
-               <div className="flex items-center gap-1.5 justify-center">
+               <div className="flex items-center gap-1.5 justify-center" title="공격력에 비례">
                  <Zap className="w-3 h-3 text-red-400" />
-                 <span className="text-[10px] text-gray-400">근력</span>
+                 <span className="text-[10px] text-gray-400">근력(공격)</span>
                  <span className="text-[10px] font-mono text-gray-200">{character.stats.strength}</span>
                </div>
-               <div className="flex items-center gap-1.5 justify-center border-l border-[#333333]">
+               <div className="flex items-center gap-1.5 justify-center border-l border-[#333333]" title="치명타 확률에 비례">
                  <Clover className="w-3 h-3 text-yellow-400" />
-                 <span className="text-[10px] text-gray-400">행운</span>
+                 <span className="text-[10px] text-gray-400">행운(크리)</span>
                  <span className="text-[10px] font-mono text-gray-200">{character.stats.luck}</span>
                </div>
             </div>

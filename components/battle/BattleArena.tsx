@@ -17,10 +17,16 @@ interface FloatingText {
   type: 'damage' | 'crit' | 'glancing';
 }
 
+const HP_MULTIPLIER = 2; // Stamina stat to HP conversion factor
+
 const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
+  // Stats Calculation
+  const heroMaxHp = (hero.stats?.stamina || 50) * HP_MULTIPLIER;
+  const villainMaxHp = (villain.stats?.stamina || 50) * HP_MULTIPLIER;
+
   // Battle State
-  const [heroHp, setHeroHp] = useState(100);
-  const [villainHp, setVillainHp] = useState(100);
+  const [heroHp, setHeroHp] = useState(heroMaxHp);
+  const [villainHp, setVillainHp] = useState(villainMaxHp);
   const [turn, setTurn] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
@@ -69,6 +75,8 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     setAttacker(attackerRole);
 
     // Calculate Damage Logic
+    // Adjust damage scale if needed based on HP multiplier, but battleLogic returns roughly 5-40 damage.
+    // With 500 HP, 40 damage is 8%. Battles will last longer (~10-15 turns).
     const result = calculateBattleDamage(attackerChar, defenderChar);
     const damage = result.damage;
 
@@ -204,8 +212,13 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
              
              {/* Hero HP Bar */}
              <div className="w-full mt-4 bg-gray-700 rounded-full h-4 overflow-hidden border border-gray-600 relative">
-               <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-300" style={{ width: `${heroHp}%` }}></div>
-               <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">{heroHp}%</span>
+               <div 
+                 className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-300" 
+                 style={{ width: `${(heroHp / heroMaxHp) * 100}%` }}
+               ></div>
+               <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">
+                 {Math.ceil(heroHp)} / {heroMaxHp}
+               </span>
              </div>
              
              <div className="mt-2 text-center">
@@ -239,8 +252,13 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
 
              {/* Villain HP Bar */}
              <div className="w-full mt-4 bg-gray-700 rounded-full h-4 overflow-hidden border border-gray-600 relative">
-               <div className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" style={{ width: `${villainHp}%` }}></div>
-               <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">{villainHp}%</span>
+               <div 
+                 className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" 
+                 style={{ width: `${(villainHp / villainMaxHp) * 100}%` }}
+               ></div>
+               <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">
+                 {Math.ceil(villainHp)} / {villainMaxHp}
+               </span>
              </div>
 
              <div className="mt-2 text-center">

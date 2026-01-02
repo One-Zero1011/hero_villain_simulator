@@ -18,26 +18,35 @@ export const calculateBattleDamage = (attacker: Character, defender: Character):
   const critChance = 0.05 + (attStats.luck / 400); 
   const isCrit = Math.random() < critChance;
 
-  // 2. Base Damage Calculation
-  // Attack Rating: Strength contributes heavily to physical force, Power is raw tier
-  let attackRating = (attStats.strength * 0.5) + (attacker.power * 0.4);
+  // 2. Base Damage Calculation (Modified: Strength is dominant)
+  // Attack Rating is now heavily proportional to Strength.
+  // Formula: (Strength * 1.5) + (Power * 0.3)
+  // Example: Str 100 -> 150 + alpha.
+  let attackRating = (attStats.strength * 1.5) + (attacker.power * 0.3);
 
-  // 3. Defense Mitigation
-  // Stamina absorbs damage, Intelligence predicts attacks (parrying/dodging)
-  const defenseRating = (defStats.stamina * 0.3) + (defStats.intelligence * 0.1);
+  // 3. Defense Mitigation (Modified: Stamina is dominant)
+  // Defense Rating: (Stamina * 0.8) + (Intelligence * 0.2)
+  // Higher stamina directly reduces incoming damage.
+  const defenseRating = (defStats.stamina * 0.8) + (defStats.intelligence * 0.2);
 
   // 4. Intelligence Check (Tactical Advantage)
-  // If attacker is smarter, they find weak points, bypassing some defense or adding damage
+  // If attacker is smarter, they find weak points, ignoring some defense.
   if (attStats.intelligence > defStats.intelligence) {
     const diff = attStats.intelligence - defStats.intelligence;
-    attackRating += diff * 0.2; // Add 20% of the diff as extra damage rating
+    // Reduce defense rating based on int difference, capped at 30% reduction
+    const defensePenetration = Math.min(0.3, diff * 0.01); 
+    // Effectively ignoring up to 30% of opponent's defense
+    attackRating += defenseRating * defensePenetration; 
   }
 
   // 5. Calculate Raw Damage
-  let rawDamage = Math.max(5, attackRating - defenseRating);
+  // Minimum damage is always 1 to prevent stalemates
+  let rawDamage = Math.max(1, attackRating - (defenseRating * 0.5)); 
+  // Note: We subtract only half of defense rating to ensure damage flows through, 
+  // mimicking a "Defense reduces damage but doesn't block it all" mechanic.
 
-  // 6. Variance (+/- 15%)
-  const variance = 0.85 + Math.random() * 0.3;
+  // 6. Variance (+/- 10%)
+  const variance = 0.9 + Math.random() * 0.2;
   rawDamage *= variance;
 
   // 7. Apply Crit Multiplier
@@ -49,13 +58,15 @@ export const calculateBattleDamage = (attacker: Character, defender: Character):
   let isGlancing = false;
   if (!isCrit && defStats.luck > attStats.luck && Math.random() < 0.2) {
     isGlancing = true;
-    rawDamage *= 0.7; // 30% reduction
+    rawDamage *= 0.5; // 50% reduction for glancing
   }
 
-  // Scaling: Map stat-based damage (roughly 0-100 range) to HP percentage logic
-  // Assuming 100% HP represents a full health bar. 
-  // We clamp damage between 3 and 35 per turn to ensure battles last 3-10 turns.
-  const finalDamage = Math.max(3, Math.min(35, Math.round(rawDamage / 2))); // Scale down for % based HP system
+  // Scaling
+  // Since Max HP is (Stamina * 2) ~ approx 200 max.
+  // We want damage to be significant. 
+  // With Str 100 vs Sta 50: Atk ~160, Def ~50. Raw ~ 135.
+  // We need to scale this down to reasonable per-turn damage (e.g., 20-40).
+  const finalDamage = Math.max(2, Math.round(rawDamage / 4)); 
 
   return {
     damage: finalDamage,
@@ -94,7 +105,7 @@ export const getBattleFlavorText = (attackerName: string, defenderName: string, 
   
   if (result.isCrit) templateList = CRIT_TEMPLATES;
   else if (result.isGlancing) templateList = GLANCING_TEMPLATES;
-  else if (result.damage > 15) templateList = HEAVY_TEMPLATES;
+  else if (result.damage > 25) templateList = HEAVY_TEMPLATES; // Threshold adjusted
 
   const template = getRandom(templateList);
   return formatTemplate(template, { attacker: attackerName, defender: defenderName });

@@ -202,7 +202,7 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
                          </div>
                          <div className="flex gap-2 text-[10px] text-gray-400">
                            <span className="flex items-center gap-0.5">
-                             <Heart className="w-3 h-3" /> {char.stats?.stamina ?? 50}
+                             <Heart className="w-3 h-3" /> {(char.stats?.stamina ?? 50) * 2}
                            </span>
                            {char.status === Status.INJURED && (
                              <span className="text-orange-500 flex items-center gap-0.5 font-bold">
