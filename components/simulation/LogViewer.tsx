@@ -25,16 +25,16 @@ const LogViewer: React.FC<Props> = ({ logs }) => {
   };
 
   return (
-    <div className="bg-[#2a2a2a] rounded-xl shadow-lg flex flex-col h-[500px] border border-[#333333] overflow-hidden">
-      <div className="p-4 bg-[#1c1c1c] border-b border-[#333333] flex justify-between items-center">
-        <h2 className="font-bold text-gray-100 flex items-center gap-2">
+    <div className="bg-[#2a2a2a] rounded-xl shadow-lg flex flex-col h-60 lg:h-[500px] border border-[#333333] overflow-hidden transition-all duration-300">
+      <div className="p-3 md:p-4 bg-[#1c1c1c] border-b border-[#333333] flex justify-between items-center">
+        <h2 className="font-bold text-gray-100 flex items-center gap-2 text-sm md:text-base">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
           시스템 로그
         </h2>
-        <span className="text-xs text-gray-500 font-mono">{logs.length} events</span>
+        <span className="text-[10px] md:text-xs text-gray-500 font-mono">{logs.length} events</span>
       </div>
       
-      <div className="flex-1 overflow-y-auto log-scroll p-4 space-y-2 font-mono text-sm bg-[#2a2a2a]">
+      <div className="flex-1 overflow-y-auto log-scroll p-3 md:p-4 space-y-2 font-mono text-xs md:text-sm bg-[#2a2a2a]">
         {logs.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-600 gap-2">
             <div className="w-12 h-1 bg-[#333333] rounded-full"></div>
@@ -43,9 +43,9 @@ const LogViewer: React.FC<Props> = ({ logs }) => {
         ) : (
           logs.map((log) => (
             <div key={log.id} className="animate-fade-in group">
-              <div className="flex gap-3">
-                <span className="text-[10px] text-gray-600 pt-1 min-w-[3rem]">Day {log.day}</span>
-                <p className={`flex-1 text-sm ${getLogStyle(log.type)}`}>
+              <div className="flex gap-2 md:gap-3">
+                <span className="text-[10px] text-gray-600 pt-1 min-w-[2.5rem] md:min-w-[3rem]">Day {log.day}</span>
+                <p className={`flex-1 break-keep ${getLogStyle(log.type)}`}>
                   {log.message}
                 </p>
               </div>

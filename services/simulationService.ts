@@ -35,14 +35,24 @@ export const processDailyEvents = (
   const individualLogs: LogEntry[] = [];
   const interactionLogs: LogEntry[] = [];
 
-  // --- Phase 0: Sanity Check & Decay ---
+  // --- Phase 0: Sanity & HP Check ---
   updatedCharacters = updatedCharacters.map(char => {
     if (char.status === Status.DEAD || excludeIds.includes(char.id)) return char;
 
     const maxSanity = (char.stats?.intelligence || 50) * 2;
     let newSanity = char.currentSanity ?? maxSanity;
     
-    // Natural Decay or Recovery
+    const maxHp = (char.stats?.stamina || 50) * 2;
+    let newHp = char.currentHp ?? maxHp;
+
+    // Natural Recovery (Rest)
+    // Recover 10% + 5 HP naturally per day if not dead
+    const hpRecovery = Math.floor(maxHp * 0.1) + 5;
+    if (newHp < maxHp) {
+      newHp = Math.min(maxHp, newHp + hpRecovery);
+    }
+    
+    // Natural Sanity Decay or Recovery
     if (char.status === Status.INJURED) {
       newSanity = Math.max(0, newSanity - Math.floor(Math.random() * 10));
     } else {
@@ -80,14 +90,20 @@ export const processDailyEvents = (
       }
     }
 
-    return { ...char, currentSanity: newSanity, isInsane };
+    return { ...char, currentSanity: newSanity, currentHp: newHp, isInsane };
   });
 
-  // --- Phase 1: Recovery (System) ---
+  // --- Phase 1: Recovery (Status) ---
   updatedCharacters = updatedCharacters.map(char => {
+    // If Injured, try to recover to NORMAL if HP is sufficient (e.g. > 50%)
+    // Or random small chance to recover anyway
     if (char.status === Status.INJURED) {
-      // 30% chance to recover
-      if (Math.random() < 0.3) {
+      const maxHp = (char.stats?.stamina || 50) * 2;
+      const currentHp = char.currentHp ?? 0;
+      
+      const isRecovered = (currentHp > maxHp * 0.5) || (Math.random() < 0.3); // High HP or 30% luck
+
+      if (isRecovered) {
         systemLogs.push({
           id: generateId(),
           day: nextDay,
@@ -121,7 +137,7 @@ export const processDailyEvents = (
 
       // 10% chance civilian dies
       if (Math.random() < 0.1) {
-        updates.set(victim.id, { status: Status.DEAD });
+        updates.set(victim.id, { status: Status.DEAD, currentHp: 0 });
         const currentKills = updates.get(villain.id)?.kills ?? villain.kills;
         updates.set(villain.id, { ...updates.get(villain.id), kills: currentKills + 1 });
         

@@ -81,7 +81,8 @@ export interface Character {
   stats?: Stats;
   superpower?: string;
   
-  // Mental State
+  // Physical & Mental State
+  currentHp?: number;     // 현재 체력 (Max = stamina * 2)
   currentSanity?: number; // 현재 정신력 (Max = intelligence * 2)
   isInsane?: boolean;     // 정신 착란 상태 여부
 
@@ -136,4 +137,19 @@ export interface BattleResult {
   loserId: string;
   isDraw?: boolean;
   logs: string[];
+}
+
+// --- Save System ---
+export type SaveType = 'FULL' | 'ROSTER';
+
+export interface SaveData {
+  version: number;
+  type: SaveType;
+  timestamp: number;
+  // Common Data
+  characters: Character[];
+  // Full Save Only Data (Optional)
+  day?: number;
+  factionResources?: Record<Role, FactionResources>;
+  logs?: LogEntry[];
 }

@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { Character, LogEntry, Role, Status, Housing, FactionResources, Item } from '../types/index';
+import { Character, LogEntry, Role, Status, Housing, FactionResources, Item, SaveData, SaveType } from '../types/index';
 import { processDailyEvents } from '../services/simulationService';
 import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
@@ -130,7 +130,7 @@ export const useGameEngine = () => {
     }
   }, [day, characters]);
 
-  const handleBattleComplete = (winner: Character, loser: Character, battleLogTexts: string[]) => {
+  const handleBattleComplete = (winner: Character, loser: Character, battleLogTexts: string[], winnerHp: number, loserHp: number) => {
     // Determine Loser Fate
     const isDeath = Math.random() < 0.2; // 20% chance of death
 
@@ -144,6 +144,7 @@ export const useGameEngine = () => {
       if (char.id === winner.id) {
         return {
           ...char,
+          currentHp: winnerHp, // Persist remaining HP
           currentSanity: newSanity,
           battlesWon: char.battlesWon + 1,
           power: Math.min(100, char.power + 2) // Cap at 100
@@ -152,6 +153,7 @@ export const useGameEngine = () => {
       if (char.id === loser.id) {
         return {
           ...char,
+          currentHp: 0, // Loser is defeated
           currentSanity: Math.max(0, newSanity - 10), // Loser loses more sanity
           status: isDeath ? Status.DEAD : Status.INJURED
         };
@@ -159,8 +161,8 @@ export const useGameEngine = () => {
       return char;
     });
 
-    // Update Resources (Winner takes money - only if standard roles, ignore for insanity frenzy for simplicity or keep it)
-    if (winner.role !== Role.CIVILIAN) { // Civilians usually don't loot, but let's keep logic simple
+    // Update Resources (Winner takes money - only if standard roles)
+    if (winner.role !== Role.CIVILIAN) { 
       setFactionResources(prev => {
         const reward = 1000 + Math.floor(Math.random() * 500);
         return {
@@ -178,7 +180,7 @@ export const useGameEngine = () => {
       {
         id: generateId(),
         day: day + 1,
-        message: `⚔️ 전투 종료! ${winner.name}의 승리!`,
+        message: `⚔️ 전투 종료! ${winner.name}의 승리! (남은 체력: ${Math.ceil(winnerHp)})`,
         type: 'BATTLE',
         timestamp: Date.now()
       },
@@ -227,22 +229,23 @@ export const useGameEngine = () => {
     switch (item.effectType) {
       case 'HEAL':
         const healAmount = item.effectValue || 10;
+        const maxHp = (updatedChar.stats?.stamina || 50) * 2;
+        const currentHp = updatedChar.currentHp ?? maxHp;
+        
+        // Heal HP
+        updatedChar.currentHp = Math.min(maxHp, currentHp + healAmount);
+
         // Fix status if injured
         if (updatedChar.status === Status.INJURED) {
           updatedChar.status = Status.NORMAL;
-          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 부상을 치료했습니다!`;
+          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 부상을 치료하고 체력을 회복했습니다! (${Math.ceil(currentHp)} -> ${Math.ceil(updatedChar.currentHp)})`;
         } else {
-          // Heal stamina
-          const currentStamina = updatedChar.stats?.stamina || 50;
-          const newStamina = Math.min(100, currentStamina + healAmount);
-          if (updatedChar.stats) {
-            updatedChar.stats = { ...updatedChar.stats, stamina: newStamina };
-          }
+          // Heal Stamina (if mechanism requires, but mostly visual here, let's boost sanity slightly too)
           // Restore Sanity slightly with heal items
           const maxSanity = (updatedChar.stats?.intelligence || 50) * 2;
-          updatedChar.currentSanity = Math.min(maxSanity, (updatedChar.currentSanity || maxSanity) + 10);
+          updatedChar.currentSanity = Math.min(maxSanity, (updatedChar.currentSanity || maxSanity) + 5);
           
-          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력과 정신력을 회복했습니다.`;
+          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력을 회복했습니다. (${Math.ceil(currentHp)} -> ${Math.ceil(updatedChar.currentHp)})`;
         }
         break;
 
@@ -317,9 +320,11 @@ export const useGameEngine = () => {
   };
 
   const handleAddCharacter = (newCharData: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'>) => {
-    // Sanity Initialization
+    // Sanity & HP Initialization
     const intelligence = newCharData.stats?.intelligence || 50;
+    const stamina = newCharData.stats?.stamina || 50;
     const maxSanity = intelligence * 2;
+    const maxHp = stamina * 2;
 
     const newChar: Character = {
       id: generateId(),
@@ -329,6 +334,7 @@ export const useGameEngine = () => {
       saves: 0,
       battlesWon: 0,
       currentSanity: maxSanity,
+      currentHp: maxHp,
       isInsane: false,
       housing: { themeId: 'default_room', items: [] } // Init empty housing
     };
@@ -393,6 +399,7 @@ export const useGameEngine = () => {
   };
 
   const handleReset = () => {
+    if (!window.confirm("정말로 게임을 초기화하시겠습니까? 모든 데이터가 사라집니다.")) return;
     setDay(1);
     setCharacters(INITIAL_CHARACTERS);
     setFactionResources(INITIAL_RESOURCES);
@@ -403,6 +410,86 @@ export const useGameEngine = () => {
       type: 'INFO',
       timestamp: Date.now()
     }]);
+  };
+
+  // --- Save/Load Functionality ---
+
+  const exportData = (type: SaveType): SaveData => {
+    const baseData = {
+      version: 1,
+      type,
+      timestamp: Date.now(),
+      characters, // Always export current state of characters
+    };
+
+    if (type === 'FULL') {
+      return {
+        ...baseData,
+        day,
+        factionResources,
+        logs
+      };
+    } else {
+      // For Roster export, we sanitize character status to default
+      const cleanCharacters = characters.map(c => ({
+        ...c,
+        status: Status.NORMAL,
+        currentHp: (c.stats?.stamina || 50) * 2,
+        currentSanity: (c.stats?.intelligence || 50) * 2,
+        isInsane: false,
+        kills: 0,
+        saves: 0,
+        battlesWon: 0
+      }));
+      return {
+        ...baseData,
+        characters: cleanCharacters
+      };
+    }
+  };
+
+  const importData = (data: SaveData) => {
+    if (data.type === 'FULL') {
+      // Full Game Load
+      if (data.day) setDay(data.day);
+      if (data.characters) setCharacters(data.characters);
+      if (data.factionResources) setFactionResources(data.factionResources);
+      if (data.logs) setLogs(data.logs);
+      
+      // Add a system log indicating load
+      setLogs(prev => [...prev, {
+        id: generateId(),
+        day: data.day || 1,
+        message: '💾 저장된 게임을 불러왔습니다.',
+        type: 'INFO',
+        timestamp: Date.now()
+      }]);
+
+    } else if (data.type === 'ROSTER') {
+      // Roster Load (New Game with imported chars)
+      // We assume data.characters are already sanitized or we sanitize them here again for safety
+      const importedChars = data.characters.map(c => ({
+        ...c,
+        status: Status.NORMAL,
+        currentHp: (c.stats?.stamina || 50) * 2,
+        currentSanity: (c.stats?.intelligence || 50) * 2,
+        isInsane: false,
+        kills: 0,
+        saves: 0,
+        battlesWon: 0
+      }));
+
+      setCharacters(importedChars);
+      setDay(1);
+      setFactionResources(INITIAL_RESOURCES);
+      setLogs([{
+        id: generateId(),
+        day: 1,
+        message: '📂 외부 캐릭터 명단을 불러왔습니다. 새로운 시뮬레이션을 시작합니다.',
+        type: 'INFO',
+        timestamp: Date.now()
+      }]);
+    }
   };
 
   return {
@@ -421,6 +508,8 @@ export const useGameEngine = () => {
     handleHousingSave,
     handleReset,
     handleBattleComplete,
-    handleUseItem
+    handleUseItem,
+    exportData,
+    importData
   };
 };

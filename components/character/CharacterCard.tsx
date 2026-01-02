@@ -50,9 +50,11 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
 
   const styles = getRoleStyle(character.role);
 
-  // Derived Stats (x2 Multiplier)
-  const maxHp = (character.stats?.stamina || 0) * 2;
-  const currentHp = isInjured ? Math.round(maxHp * 0.3) : maxHp;
+  // Stats Logic
+  const maxHp = (character.stats?.stamina || 50) * 2;
+  // Use persistent currentHp if available, fallback to legacy calc for safety
+  const currentHp = character.currentHp ?? (isInjured ? Math.round(maxHp * 0.3) : maxHp);
+  const hpPercent = (currentHp / maxHp) * 100;
   
   // Sanity logic
   const maxSanity = (character.stats?.intelligence || 50) * 2;
@@ -156,14 +158,15 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
             <div className="space-y-1.5">
               {/* HP / Stamina Bar */}
               <div className="flex items-center gap-2" title={`체력 (최대 ${maxHp})`}>
-                <Heart className={`w-3 h-3 shrink-0 ${isInjured ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`} />
+                <Heart className={`w-3 h-3 shrink-0 ${currentHp < maxHp * 0.3 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`} />
                 <div className="flex-1 h-1.5 bg-[#333] rounded-full overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-500 ${isInjured ? 'bg-red-600 w-[30%]' : 'bg-emerald-500 w-full'}`} 
+                    className={`h-full rounded-full transition-all duration-500 ${currentHp < maxHp * 0.3 ? 'bg-red-600' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.max(0, Math.min(100, hpPercent))}%` }}
                   />
                 </div>
-                <span className={`text-[10px] font-mono w-10 text-right ${isInjured ? 'text-red-500 font-bold' : 'text-emerald-400'}`}>
-                  {currentHp} / {maxHp}
+                <span className={`text-[10px] font-mono w-10 text-right ${currentHp < maxHp * 0.3 ? 'text-red-500 font-bold' : 'text-emerald-400'}`}>
+                  {Math.ceil(currentHp)} / {maxHp}
                 </span>
               </div>
 
@@ -247,8 +250,8 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
         </div>
       )}
 
-      {/* Injured Overlay */}
-      {isInjured && !isInsane && (
+      {/* Injured Overlay (Now triggered by HP) */}
+      {currentHp < maxHp * 0.3 && !isInsane && !isDead && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden rounded-lg">
            <div className="absolute inset-0 bg-red-500/10 animate-pulse"></div>
            <div className="bg-black/40 backdrop-blur-[2px] absolute inset-0"></div>

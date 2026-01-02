@@ -7,7 +7,7 @@ import { calculateBattleDamage, getBattleFlavorText } from '../../utils/battleLo
 interface Props {
   hero: Character; // Treated as Left Side (Player 1 / Attacker initially)
   villain: Character; // Treated as Right Side (Player 2 / Defender initially)
-  onComplete: (winner: Character, loser: Character, logs: string[]) => void;
+  onComplete: (winner: Character, loser: Character, logs: string[], winnerHp: number, loserHp: number) => void;
 }
 
 type Side = 'left' | 'right';
@@ -26,9 +26,10 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   const leftMaxHp = (hero.stats?.stamina || 50) * HP_MULTIPLIER;
   const rightMaxHp = (villain.stats?.stamina || 50) * HP_MULTIPLIER;
 
-  // State
-  const [leftHp, setLeftHp] = useState(leftMaxHp);
-  const [rightHp, setRightHp] = useState(rightMaxHp);
+  // Initialize with currentHp if available, otherwise max
+  const [leftHp, setLeftHp] = useState(hero.currentHp ?? leftMaxHp);
+  const [rightHp, setRightHp] = useState(villain.currentHp ?? rightMaxHp);
+  
   const [turn, setTurn] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
@@ -104,22 +105,28 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     setTimeout(() => {
         if (isFinished) return;
 
+        let newLeftHp = leftHp;
+        let newRightHp = rightHp;
+
         if (isLeftTurn) {
-            setRightHp(prev => Math.max(0, prev - damage));
+            newRightHp = Math.max(0, rightHp - damage);
+            setRightHp(newRightHp);
         } else {
-            setLeftHp(prev => Math.max(0, prev - damage));
+            newLeftHp = Math.max(0, leftHp - damage);
+            setLeftHp(newLeftHp);
         }
 
         const logMsg = getBattleFlavorText(attackerChar.name, defenderChar.name, result);
         setLogs(prev => [...prev, `[Turn ${turn + 1}] ${logMsg}`]);
 
-        // Check Death (Using updated values logic simulation)
-        const newDefenderHp = isLeftTurn ? Math.max(0, rightHp - damage) : Math.max(0, leftHp - damage);
+        // Check Death
+        const newDefenderHp = isLeftTurn ? newRightHp : newLeftHp;
 
         if (newDefenderHp === 0) {
             setIsFinished(true);
             setTimeout(() => {
-                onComplete(attackerChar, defenderChar, [...logs, `[Turn ${turn + 1}] ${logMsg}`]);
+                const winnerHp = isLeftTurn ? newLeftHp : newRightHp;
+                onComplete(attackerChar, defenderChar, [...logs, `[Turn ${turn + 1}] ${logMsg}`], winnerHp, 0);
             }, 2000);
         } else {
             setTurn(prev => prev + 1);
@@ -164,9 +171,10 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
 
     const winner = currentLeftHp > 0 ? hero : villain;
     const loser = currentLeftHp > 0 ? villain : hero;
+    const winnerHp = currentLeftHp > 0 ? currentLeftHp : currentRightHp;
 
     setTimeout(() => {
-        onComplete(winner, loser, [...logs, ...newLogs]);
+        onComplete(winner, loser, [...logs, ...newLogs], winnerHp, 0);
     }, 1000);
   };
 
