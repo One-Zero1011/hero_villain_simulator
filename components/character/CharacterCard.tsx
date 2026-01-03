@@ -1,15 +1,16 @@
 
 import React from 'react';
 import { Character, Role, Status } from '../../types/index';
-import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff, Edit2 } from 'lucide-react';
 
 interface Props {
   character: Character;
   onDelete: (id: string) => void;
+  onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
 }
 
-const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) => {
+const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHousing }) => {
   const isDead = character.status === Status.DEAD;
   const isInjured = character.status === Status.INJURED;
   const isInsane = character.isInsane;
@@ -61,85 +62,92 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
   const currentSanity = character.currentSanity ?? maxSanity;
   const sanityPercent = (currentSanity / maxSanity) * 100;
 
+  const getAffinityColor = (val: number | undefined) => {
+    if (val === undefined) return 'text-gray-400';
+    if (val >= 50) return 'text-pink-400'; // High affection
+    if (val >= 10) return 'text-green-400'; // Positive
+    if (val <= -50) return 'text-red-500 font-bold'; // Hatred
+    if (val <= -10) return 'text-orange-400'; // Negative
+    return 'text-gray-400'; // Neutral
+  };
+
   return (
     <div className={`relative p-4 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 
       ${styles.wrapper} 
       ${isDead ? 'opacity-50 grayscale' : ''} 
       ${isInsane ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : ''}
       ${isInjured && !isInsane ? 'border-orange-500/50 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' : 'border-[#333333]'}
-      group border border-t-0 border-r-0 border-b-0`}
+      group border border-t-0 border-r-0 border-b-0 overflow-hidden`}
     >
       
       {/* Header */}
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-3">
-          {character.imageUrl ? (
-             <div className={`w-20 h-20 rounded-full border-2 overflow-hidden bg-[#1c1c1c] shrink-0 ${isInsane ? 'border-purple-500 animate-pulse' : isInjured ? 'border-orange-500' : 'border-[#404040]'}`}>
-               <img src={character.imageUrl} alt={character.name} className={`w-full h-full object-cover ${isInsane ? 'hue-rotate-90 contrast-125' : ''}`} />
-             </div>
-          ) : (
-            <div className={`w-20 h-20 rounded-full border-2 border-[#404040] bg-[#333333] flex items-center justify-center shrink-0`}>
-              {styles.icon}
+      <div className="flex items-start gap-3 mb-3 w-full">
+        {character.imageUrl ? (
+            <div className={`w-20 h-20 rounded-full border-2 overflow-hidden bg-[#1c1c1c] shrink-0 ${isInsane ? 'border-purple-500 animate-pulse' : isInjured ? 'border-orange-500' : 'border-[#404040]'}`}>
+              <img src={character.imageUrl} alt={character.name} className={`w-full h-full object-cover ${isInsane ? 'hue-rotate-90 contrast-125' : ''}`} />
             </div>
-          )}
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-               <h3 className={`font-bold leading-tight flex items-center gap-1 text-lg truncate ${isInsane ? 'text-purple-400 italic tracking-widest' : 'text-gray-100'}`}>
-                 {character.name}
-               </h3>
-               
-               {/* Status Display Moved Here for Better Layout with Large Image */}
-               <div className="flex flex-col items-end shrink-0 ml-2">
-                  <div className="flex items-center gap-1 mb-0.5">
-                     {isInsane ? (
-                        <span className="text-xs text-purple-500 font-black animate-pulse flex items-center gap-1">
-                          <Brain className="w-3 h-3" /> INSANE
-                        </span>
-                     ) : isInjured ? (
-                       <>
-                        <AlertTriangle className="w-3 h-3 text-orange-500 animate-bounce" />
-                        <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
-                       </>
-                     ) : (
-                       <>
-                        <Activity className="w-3 h-3 text-gray-500" />
-                        <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
-                       </>
-                     )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 text-right">{character.age}세 / {character.gender}</span>
-               </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1 mt-1">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${styles.badge}`}>
-                {character.role}
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1c1c1c] text-gray-400 border border-[#333333]">
-                {character.mbti}
-              </span>
+        ) : (
+          <div className={`w-20 h-20 rounded-full border-2 border-[#404040] bg-[#333333] flex items-center justify-center shrink-0`}>
+            {styles.icon}
+          </div>
+        )}
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start">
+              <h3 className={`font-bold leading-tight text-lg truncate pr-2 ${isInsane ? 'text-purple-400 italic tracking-widest' : 'text-gray-100'}`}>
+                {character.name}
+              </h3>
               
-              {/* Identity Status for Heroes */}
-              {character.role === Role.HERO && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1
-                  ${character.isIdentityRevealed 
-                    ? 'bg-amber-900/40 text-amber-300 border-amber-700' 
-                    : 'bg-slate-700 text-gray-300 border-slate-600'}`
-                }>
-                  {character.isIdentityRevealed 
-                    ? <><Eye className="w-2.5 h-2.5" /> 정체 드러남</> 
-                    : <><EyeOff className="w-2.5 h-2.5" /> 정체 숨김</>
-                  }
-                </span>
-              )}
+              {/* Status Display */}
+              <div className="flex flex-col items-end shrink-0">
+                <div className="flex items-center gap-1 mb-0.5">
+                    {isInsane ? (
+                      <span className="text-xs text-purple-500 font-black animate-pulse flex items-center gap-1">
+                        <Brain className="w-3 h-3" /> INSANE
+                      </span>
+                    ) : isInjured ? (
+                      <>
+                      <AlertTriangle className="w-3 h-3 text-orange-500 animate-bounce" />
+                      <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
+                      </>
+                    ) : (
+                      <>
+                      <Activity className="w-3 h-3 text-gray-500" />
+                      <span className={`text-xs ${getStatusColor(character.status)}`}>{character.status}</span>
+                      </>
+                    )}
+                </div>
+                <span className="text-[10px] text-gray-500 text-right whitespace-nowrap">{character.age}세 / {character.gender}</span>
+              </div>
+          </div>
 
-              {character.personality && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#252525] text-gray-300 border border-[#404040]">
-                  #{character.personality}
-                </span>
-              )}
-            </div>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${styles.badge}`}>
+              {character.role}
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1c1c1c] text-gray-400 border border-[#333333]">
+              {character.mbti}
+            </span>
+            
+            {/* Identity Status for Heroes */}
+            {character.role === Role.HERO && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1
+                ${character.isIdentityRevealed 
+                  ? 'bg-amber-900/40 text-amber-300 border-amber-700' 
+                  : 'bg-slate-700 text-gray-300 border-slate-600'}`
+              }>
+                {character.isIdentityRevealed 
+                  ? <><Eye className="w-2.5 h-2.5" /> 정체 드러남</> 
+                  : <><EyeOff className="w-2.5 h-2.5" /> 정체 숨김</>
+                }
+              </span>
+            )}
+
+            {character.personality && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#252525] text-gray-300 border border-[#404040]">
+                #{character.personality}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -210,8 +218,13 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
            <div className="text-[10px] text-gray-500 mb-0.5">관계</div>
            <div className="flex flex-wrap gap-1">
              {character.relationships.slice(0, 3).map((rel, idx) => (
-               <span key={idx} className="text-[10px] bg-[#333333] px-1.5 py-0.5 rounded text-gray-300 border border-[#404040]">
+               <span key={idx} className="text-[10px] bg-[#333333] px-1.5 py-0.5 rounded text-gray-300 border border-[#404040] flex items-center gap-1">
                  {rel.targetName}:{rel.type}
+                 {rel.affinity !== undefined && (
+                   <span className={`text-[9px] font-mono ${getAffinityColor(rel.affinity)}`}>
+                     {rel.affinity > 0 ? '+' : ''}{rel.affinity}
+                   </span>
+                 )}
                </span>
              ))}
              {character.relationships.length > 3 && (
@@ -222,16 +235,27 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onOpenHousing }) 
       )}
 
       {/* Actions */}
-      <div className="flex justify-between border-t border-[#333333] pt-3 mt-2">
-        {!isDead && (
-          <button 
-            onClick={() => onOpenHousing(character)}
-            className="px-2 py-1 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#333333] rounded transition-colors flex items-center gap-1 border border-[#404040]"
-            title="본거지 꾸미기"
-          >
-            <Home className="w-3 h-3" /> 본거지
-          </button>
-        )}
+      <div className="flex justify-between border-t border-[#333333] pt-3 mt-2 items-center">
+        <div className="flex gap-2">
+          {!isDead && (
+            <button 
+              onClick={() => onOpenHousing(character)}
+              className="px-2 py-1 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#333333] rounded transition-colors flex items-center gap-1 border border-[#404040]"
+              title="본거지 꾸미기"
+            >
+              <Home className="w-3 h-3" /> 본거지
+            </button>
+          )}
+          {onEdit && (
+            <button 
+              onClick={() => onEdit(character)}
+              className="px-2 py-1 text-xs font-medium text-gray-300 hover:text-white hover:bg-[#333333] rounded transition-colors flex items-center gap-1 border border-[#404040]"
+              title="정보 수정"
+            >
+              <Edit2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
         
         <button 
           onClick={() => onDelete(character.id)}

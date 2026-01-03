@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ShieldAlert, FastForward, RotateCcw, Save } from 'lucide-react';
+import { ShieldAlert, FastForward, RotateCcw, Save, Settings } from 'lucide-react';
 import { Character, Status } from '../../types/index';
 
 interface Props {
@@ -8,10 +8,11 @@ interface Props {
   characters: Character[];
   onNextDay: () => void;
   onReset: () => void;
-  onOpenSaveLoad?: () => void; // New prop
+  onOpenSaveLoad?: () => void;
+  onOpenSettings?: () => void; // New Prop
 }
 
-const Header: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOpenSaveLoad }) => {
+const Header: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOpenSaveLoad, onOpenSettings }) => {
   const aliveCount = characters.filter(c => c.status !== Status.DEAD).length;
 
   return (
@@ -51,6 +52,17 @@ const Header: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOpenSa
             <span className="sm:hidden">다음 날</span>
           </button>
           
+          {/* Settings Button */}
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="p-1.5 md:p-2 text-gray-300 hover:text-white hover:bg-[#333333] rounded-lg transition-colors border border-transparent hover:border-[#404040]"
+              title="설정"
+            >
+              <Settings className="w-3.5 h-3.5 md:w-4 md:h-4" />
+            </button>
+          )}
+
           {/* Save/Load Button */}
           {onOpenSaveLoad && (
             <button

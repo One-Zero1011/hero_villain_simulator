@@ -20,6 +20,7 @@ const LogViewer: React.FC<Props> = ({ logs }) => {
       case 'EVENT': return 'text-purple-300 border-l-2 border-purple-500/30 pl-2';
       case 'INTERVENTION': return 'text-cyan-300 font-medium border-l-2 border-cyan-500 pl-2 italic bg-cyan-900/10 py-1';
       case 'INSANITY': return 'text-fuchsia-400 font-bold border-l-4 border-fuchsia-600 pl-2 bg-fuchsia-900/20 py-1 animate-pulse';
+      case 'ROMANCE': return 'text-pink-300 font-bold border-l-4 border-pink-500 pl-2 bg-pink-900/20 py-1';
       default: return 'text-gray-400 pl-2';
     }
   };

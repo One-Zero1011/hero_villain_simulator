@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
-import { Role } from './types/index';
+import { Character, Role } from './types/index';
 import { Shield, Skull, Users } from 'lucide-react';
 import AddCharacterModal from './components/character/AddCharacterModal';
 import CharacterSection from './components/character/CharacterSection';
@@ -9,7 +9,8 @@ import BattleArena from './components/battle/BattleArena';
 import HousingModal from './components/housing/HousingModal';
 import InventoryModal from './components/inventory/InventoryModal';
 import RelationshipMapModal from './components/relationships/RelationshipMapModal';
-import SaveLoadModal from './components/simulation/SaveLoadModal'; // New Import
+import SaveLoadModal from './components/simulation/SaveLoadModal';
+import SettingsModal from './components/simulation/SettingsModal'; // New Import
 import GameLayout from './components/layout/GameLayout';
 import Sidebar from './components/layout/Sidebar';
 
@@ -24,15 +25,18 @@ function App() {
     isAddCharModalOpen,
     setIsAddCharModalOpen,
     setHousingModalChar,
+    gameSettings,
+    setGameSettings,
     handleNextDay,
     handleAddCharacter,
+    handleUpdateCharacter,
     handleDeleteCharacter,
     handleHousingSave,
     handleReset,
     handleBattleComplete,
     handleUseItem,
-    exportData, // New hook
-    importData  // New hook
+    exportData,
+    importData
   } = useGameEngine();
 
   // Inventory Modal State
@@ -44,6 +48,12 @@ function App() {
   // Save/Load Modal State
   const [isSaveLoadOpen, setIsSaveLoadOpen] = useState(false);
 
+  // Settings Modal State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Edit Character State
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
+
   // Filtering characters
   const heroes = characters.filter(c => c.role === Role.HERO);
   const villains = characters.filter(c => c.role === Role.VILLAIN);
@@ -54,6 +64,16 @@ function App() {
     return characters.filter(c => c.role === role);
   };
 
+  const openEditModal = (char: Character) => {
+    setEditingCharacter(char);
+    setIsAddCharModalOpen(true);
+  };
+
+  const closeCharacterModal = () => {
+    setIsAddCharModalOpen(false);
+    setEditingCharacter(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#232323] text-gray-200">
       <GameLayout
@@ -61,7 +81,8 @@ function App() {
         characters={characters}
         onNextDay={handleNextDay}
         onReset={handleReset}
-        onOpenSaveLoad={() => setIsSaveLoadOpen(true)} // Pass the handler
+        onOpenSaveLoad={() => setIsSaveLoadOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)} // Pass handler
       >
         {/* Global Modals */}
         {currentBattle && (
@@ -108,10 +129,20 @@ function App() {
           onImport={importData}
         />
 
+        {/* Settings Modal */}
+        <SettingsModal 
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={gameSettings}
+          onUpdateSettings={setGameSettings}
+        />
+
         <AddCharacterModal
           isOpen={isAddCharModalOpen}
-          onClose={() => setIsAddCharModalOpen(false)}
+          onClose={closeCharacterModal}
           onAdd={handleAddCharacter}
+          onUpdate={handleUpdateCharacter}
+          initialData={editingCharacter}
           existingCharacters={characters}
         />
 
@@ -133,6 +164,7 @@ function App() {
             characters={heroes}
             resources={factionResources[Role.HERO]}
             onDelete={handleDeleteCharacter}
+            onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.HERO)}
           />
@@ -145,6 +177,7 @@ function App() {
             characters={villains}
             resources={factionResources[Role.VILLAIN]}
             onDelete={handleDeleteCharacter}
+            onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.VILLAIN)}
           />
@@ -157,6 +190,7 @@ function App() {
             characters={civilians}
             resources={factionResources[Role.CIVILIAN]}
             onDelete={handleDeleteCharacter}
+            onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.CIVILIAN)}
           />

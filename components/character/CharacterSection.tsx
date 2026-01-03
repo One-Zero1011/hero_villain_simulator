@@ -12,12 +12,13 @@ interface Props {
   characters: Character[];
   resources: FactionResources;
   onDelete: (id: string) => void;
+  onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
   onOpenInventory: () => void; // New prop
 }
 
 const CharacterSection: React.FC<Props> = ({ 
-  title, icon, colorClass, badgeClass, characters, resources, onDelete, onOpenHousing, onOpenInventory 
+  title, icon, colorClass, badgeClass, characters, resources, onDelete, onEdit, onOpenHousing, onOpenInventory 
 }) => {
   return (
     <section>
@@ -71,6 +72,7 @@ const CharacterSection: React.FC<Props> = ({
             key={char.id} 
             character={char} 
             onDelete={onDelete} 
+            onEdit={onEdit}
             onOpenHousing={onOpenHousing}
           />
         ))}

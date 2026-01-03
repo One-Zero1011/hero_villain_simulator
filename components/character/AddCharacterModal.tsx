@@ -1,21 +1,23 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Character, Role, Gender, Stats, Relationship } from '../../types/index';
 import { MBTI_TYPES, SUPERPOWERS, RELATIONSHIP_TYPES, PERSONALITY_TYPES } from '../../data/options';
 import { 
   X, UserPlus, Plus, Trash2, Shield, Skull, User, 
   Image as ImageIcon, Upload, Link as LinkIcon, 
-  ArrowRight, ArrowLeftRight, Dice5, Eye, EyeOff 
+  ArrowRight, ArrowLeftRight, Dice5, Eye, EyeOff, Edit, Heart
 } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (character: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'>) => void;
+  onAdd?: (character: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'>) => void;
+  onUpdate?: (character: Character) => void;
   existingCharacters: Character[];
+  initialData?: Character | null; // For Edit Mode
 }
 
-const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCharacters }) => {
+const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, existingCharacters, initialData }) => {
   // Basic Info
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>(Role.HERO);
@@ -39,11 +41,59 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
 
   // Relationships
   const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const [relTargetId, setRelTargetId] = useState<string>(existingCharacters[0]?.id || '');
+  const [relTargetId, setRelTargetId] = useState<string>('');
   const [relType, setRelType] = useState(RELATIONSHIP_TYPES[0]);
+  const [affinity, setAffinity] = useState<number>(0);
   const [isMutual, setIsMutual] = useState(false); // Toggle state for relationship direction
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Initialize for Edit Mode ---
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setName(initialData.name);
+      setRole(initialData.role);
+      setGender(initialData.gender);
+      setAge(initialData.age);
+      setMbti(initialData.mbti);
+      setPersonality(initialData.personality || '');
+      setImageUrl(initialData.imageUrl || '');
+      setIsIdentityRevealed(!!initialData.isIdentityRevealed);
+      if (initialData.superpower) setSuperpower(initialData.superpower);
+      if (initialData.stats) setStats(initialData.stats);
+      if (initialData.relationships) setRelationships(initialData.relationships);
+    } else if (isOpen && !initialData) {
+      // Reset for Add Mode
+      resetForm();
+    }
+  }, [isOpen, initialData]);
+
+  // Set default target ID when opening
+  useEffect(() => {
+    if (isOpen && existingCharacters.length > 0 && !relTargetId) {
+      // If editing, filter self out
+      const validTargets = initialData 
+        ? existingCharacters.filter(c => c.id !== initialData.id)
+        : existingCharacters;
+        
+      if (validTargets.length > 0) {
+        setRelTargetId(validTargets[0].id);
+      }
+    }
+  }, [isOpen, existingCharacters, initialData, relTargetId]);
+
+  // Auto-set affinity based on relationship type
+  useEffect(() => {
+    let defaultAffinity = 0;
+    if (['부부', '절친', '가족', '쌍둥이', '연인'].includes(relType)) defaultAffinity = 80;
+    else if (['동료', '소꿉친구', '생명의 은인', '사이드킥', '형제자매', '부모', '자식'].includes(relType)) defaultAffinity = 50;
+    else if (['짝사랑', '썸', '후원자', '보호자'].includes(relType)) defaultAffinity = 30;
+    else if (['라이벌', '애증', '전 연인'].includes(relType)) defaultAffinity = -10;
+    else if (['채무 관계', '계약 관계', '비즈니스 파트너', '감시자'].includes(relType)) defaultAffinity = 0;
+    else if (['원수', '배신자', '스토커'].includes(relType)) defaultAffinity = -80;
+    
+    setAffinity(defaultAffinity);
+  }, [relType]);
 
   if (!isOpen) return null;
 
@@ -101,7 +151,10 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
         luck: Math.floor(Math.random() * 100) + 1
     });
 
-    setRelationships([]);
+    // Don't reset relationships on randomize in Edit mode to avoid accidental data loss
+    if (!initialData) {
+        setRelationships([]);
+    }
     setIsMutual(Math.random() < 0.5);
   };
 
@@ -118,6 +171,12 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
 
   const handleAddRelationship = () => {
     if (!relTargetId) return;
+    // Self check
+    if (initialData && relTargetId === initialData.id) {
+        alert("자신과는 관계를 맺을 수 없습니다.");
+        return;
+    }
+
     const targetChar = existingCharacters.find(c => c.id === relTargetId);
     if (!targetChar) return;
 
@@ -131,7 +190,8 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
       targetId: relTargetId,
       targetName: targetChar.name,
       type: relType,
-      isMutual: isMutual
+      isMutual: isMutual,
+      affinity: affinity
     }]);
   };
 
@@ -150,7 +210,7 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
       ? 5 
       : Math.floor((stats.strength + stats.intelligence + stats.stamina + stats.luck) / 4);
 
-    const newCharacterData: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'> = {
+    const baseData = {
       name,
       role,
       gender,
@@ -167,7 +227,17 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
       })
     };
 
-    onAdd(newCharacterData);
+    if (initialData && onUpdate) {
+        // Edit Mode
+        onUpdate({
+            ...initialData,
+            ...baseData,
+        });
+    } else if (onAdd) {
+        // Add Mode
+        onAdd(baseData);
+    }
+
     resetForm();
     onClose();
   };
@@ -184,11 +254,20 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
     setImageUrl('');
     setRelationships([]);
     setIsMutual(false);
+    setAffinity(0);
   };
 
   const handleStatChange = (key: keyof Stats, value: string) => {
     const num = parseInt(value);
     setStats(prev => ({ ...prev, [key]: num }));
+  };
+
+  const getAffinityColor = (val: number) => {
+    if (val >= 50) return 'text-pink-500';
+    if (val >= 20) return 'text-green-500';
+    if (val <= -50) return 'text-red-600';
+    if (val <= -20) return 'text-orange-500';
+    return 'text-gray-400';
   };
 
   return (
@@ -199,7 +278,8 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
         <div className="p-4 border-b border-[#333333] flex justify-between items-center bg-[#1c1c1c]">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-blue-500" /> 캐릭터 생성
+              {initialData ? <Edit className="w-5 h-5 text-orange-500" /> : <UserPlus className="w-5 h-5 text-blue-500" />}
+              {initialData ? '캐릭터 수정' : '캐릭터 생성'}
             </h2>
             <button 
               onClick={handleRandomize}
@@ -220,8 +300,7 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
           
           {/* 1. Image & Basic Info Wrapper */}
           <div className="flex flex-col md:flex-row gap-6">
-            
-            {/* Image Upload Section */}
+            {/* Image Upload Section ... (No changes here) */}
             <div className="flex-shrink-0 flex flex-col items-center gap-3">
               <div 
                 className="w-32 h-32 rounded-xl bg-[#2a2a2a] border-2 border-dashed border-[#404040] flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-blue-500 transition-colors"
@@ -246,7 +325,6 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                 accept="image/*" 
                 className="hidden" 
               />
-              
               <div className="w-32">
                 <div className="flex items-center gap-1 bg-[#2a2a2a] border border-[#404040] rounded px-2 py-1">
                   <LinkIcon className="w-3 h-3 text-gray-500" />
@@ -407,14 +485,12 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
               {/* Relationship Input Row */}
               <div className="flex flex-col gap-3 mb-4">
                 <div className="flex items-center gap-2 w-full">
-                  {/* Current Character (You) */}
                   <div className="flex-1 bg-[#1c1c1c] rounded px-3 py-2 text-center border border-[#404040]">
                     <span className="text-sm font-bold text-white truncate block">
-                      {name || "나 (현재 캐릭터)"}
+                      {name || "나"}
                     </span>
                   </div>
 
-                  {/* Direction Toggle Button */}
                   <button 
                     onClick={() => setIsMutual(!isMutual)}
                     className="p-2 bg-[#1c1c1c] hover:bg-blue-600 rounded-full transition-colors group flex-shrink-0 border border-[#404040] hover:border-blue-500"
@@ -427,38 +503,56 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                     )}
                   </button>
 
-                  {/* Target Character Select */}
                   <select 
                     value={relTargetId}
                     onChange={(e) => setRelTargetId(e.target.value)}
                     className="flex-1 bg-[#1c1c1c] border border-[#404040] rounded px-3 py-2 text-white text-sm outline-none"
-                    disabled={existingCharacters.length === 0}
+                    disabled={existingCharacters.length <= (initialData ? 1 : 0)}
                   >
                     <option value="">대상 선택...</option>
-                    {existingCharacters.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
+                    {existingCharacters
+                      .filter(c => !initialData || c.id !== initialData.id) // Exclude self if editing
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
                     ))}
                   </select>
                 </div>
                 
-                {/* Type & Add Button Row */}
-                <div className="flex items-center gap-2">
-                   <select 
-                    value={relType}
-                    onChange={(e) => setRelType(e.target.value)}
-                    className="flex-1 bg-[#1c1c1c] border border-[#404040] rounded px-3 py-2 text-white text-sm outline-none"
-                  >
-                    {RELATIONSHIP_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  
-                  <button 
-                    onClick={handleAddRelationship}
-                    disabled={!relTargetId || existingCharacters.length === 0}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded font-bold text-sm transition-colors flex items-center gap-1"
-                  >
-                    <Plus className="w-4 h-4" />
-                    추가
-                  </button>
+                <div className="flex flex-col gap-2">
+                   <div className="flex items-center gap-2">
+                      <select 
+                        value={relType}
+                        onChange={(e) => setRelType(e.target.value)}
+                        className="flex-1 bg-[#1c1c1c] border border-[#404040] rounded px-3 py-2 text-white text-sm outline-none"
+                      >
+                        {RELATIONSHIP_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      
+                      <button 
+                        onClick={handleAddRelationship}
+                        disabled={!relTargetId || existingCharacters.length === 0}
+                        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded font-bold text-sm transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        추가
+                      </button>
+                   </div>
+
+                   {/* Affinity Slider */}
+                   <div className="flex items-center gap-3 bg-[#1c1c1c] p-2 rounded border border-[#404040]">
+                      <Heart className={`w-4 h-4 ${getAffinityColor(affinity)}`} />
+                      <input 
+                        type="range" 
+                        min="-100" 
+                        max="100" 
+                        value={affinity} 
+                        onChange={(e) => setAffinity(parseInt(e.target.value))}
+                        className="flex-1 h-2 bg-[#333] rounded-lg appearance-none cursor-pointer accent-pink-500"
+                      />
+                      <span className={`text-xs font-mono font-bold w-12 text-right ${getAffinityColor(affinity)}`}>
+                        {affinity > 0 ? `+${affinity}` : affinity}
+                      </span>
+                   </div>
                 </div>
               </div>
 
@@ -483,6 +577,11 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
                         <span className="font-bold text-blue-400">{rel.targetName}</span>
                         <span className="text-gray-500 mx-1">|</span>
                         <span className="text-yellow-400 font-bold">{rel.type}</span>
+                        {rel.affinity !== undefined && (
+                          <span className={`text-[10px] ml-1 font-mono ${getAffinityColor(rel.affinity)}`}>
+                            ({rel.affinity > 0 ? '+' : ''}{rel.affinity})
+                          </span>
+                        )}
                       </div>
                       <button 
                         onClick={() => removeRelationship(rel.targetId)}
@@ -503,9 +602,11 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, existingCh
         <div className="p-4 border-t border-[#333333] bg-[#1c1c1c]">
           <button 
             onClick={handleSubmit}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition-all active:scale-95 shadow-lg"
+            className={`w-full text-white py-3 rounded-xl font-bold transition-all active:scale-95 shadow-lg
+              ${initialData ? 'bg-orange-600 hover:bg-orange-500' : 'bg-blue-600 hover:bg-blue-500'}
+            `}
           >
-            캐릭터 등록 완료
+            {initialData ? '캐릭터 정보 수정' : '캐릭터 등록 완료'}
           </button>
         </div>
       </div>

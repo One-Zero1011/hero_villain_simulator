@@ -9,10 +9,11 @@ interface Props {
   onNextDay: () => void;
   onReset: () => void;
   onOpenSaveLoad?: () => void;
+  onOpenSettings?: () => void; // New Prop
   children: React.ReactNode;
 }
 
-const GameLayout: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOpenSaveLoad, children }) => {
+const GameLayout: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOpenSaveLoad, onOpenSettings, children }) => {
   return (
     <div className="min-h-screen bg-[#232323] text-gray-200">
       <Header 
@@ -21,6 +22,7 @@ const GameLayout: React.FC<Props> = ({ day, characters, onNextDay, onReset, onOp
         onNextDay={onNextDay} 
         onReset={onReset}
         onOpenSaveLoad={onOpenSaveLoad} 
+        onOpenSettings={onOpenSettings}
       />
       
       {/* Main Container */}

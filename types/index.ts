@@ -36,6 +36,7 @@ export interface Relationship {
   targetName: string;
   type: string;
   isMutual?: boolean;
+  affinity?: number; // -100 to 100
 }
 
 export interface HousingItem {
@@ -121,7 +122,7 @@ export interface LogEntry {
   id: string;
   day: number;
   message: string;
-  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY';
+  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY' | 'ROMANCE'; // Added ROMANCE
   timestamp: number;
 }
 
@@ -152,4 +153,10 @@ export interface SaveData {
   day?: number;
   factionResources?: Record<Role, FactionResources>;
   logs?: LogEntry[];
+}
+
+// --- Game Settings ---
+export interface GameSettings {
+  preventMinorAdultDating: boolean; // 미성년자-성인 연애 금지 (Default: true)
+  allowFamilyDating: boolean; // 가족끼리 연애 허용 (Default: false)
 }

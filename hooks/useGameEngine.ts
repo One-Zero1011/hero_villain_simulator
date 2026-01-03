@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { Character, LogEntry, Role, Status, Housing, FactionResources, Item, SaveData, SaveType } from '../types/index';
+import { Character, LogEntry, Role, Status, Housing, FactionResources, Item, SaveData, SaveType, GameSettings } from '../types/index';
 import { processDailyEvents } from '../services/simulationService';
 import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
@@ -55,11 +55,17 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
   }
 };
 
+const INITIAL_SETTINGS: GameSettings = {
+  preventMinorAdultDating: true,
+  allowFamilyDating: false
+};
+
 export const useGameEngine = () => {
   const [day, setDay] = useState(1);
   const [characters, setCharacters] = useState<Character[]>(INITIAL_CHARACTERS);
   const [factionResources, setFactionResources] = useState<Record<Role, FactionResources>>(INITIAL_RESOURCES);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [gameSettings, setGameSettings] = useState<GameSettings>(INITIAL_SETTINGS);
   
   // Battle State
   const [currentBattle, setCurrentBattle] = useState<{hero: Character, villain: Character} | null>(null);
@@ -70,8 +76,11 @@ export const useGameEngine = () => {
   // Add Character Modal State
   const [isAddCharModalOpen, setIsAddCharModalOpen] = useState(false);
 
-  const proceedDay = (battleLogs: LogEntry[], battleParticipants: string[] = []) => {
-    const { updatedCharacters, newLogs } = processDailyEvents(day, characters, battleParticipants);
+  // Modified proceedDay to accept an optional 'currentChars' override.
+  // This allows passing the updated state immediately after a battle without waiting for React re-render.
+  const proceedDay = (battleLogs: LogEntry[], battleParticipants: string[] = [], currentChars: Character[] = characters) => {
+    // Pass gameSettings to processDailyEvents
+    const { updatedCharacters, newLogs } = processDailyEvents(day, currentChars, battleParticipants, gameSettings);
     
     const dayStartLog: LogEntry = {
       id: `day-start-${day + 1}`,
@@ -92,7 +101,6 @@ export const useGameEngine = () => {
     const insaneChars = activeChars.filter(c => c.isInsane);
     
     // 2. Insanity Battle Trigger (High Priority)
-    // If there is an insane character, they have a high chance to attack ANYONE.
     if (insaneChars.length > 0 && activeChars.length > 1 && Math.random() < 0.7) {
       const attacker = insaneChars[Math.floor(Math.random() * insaneChars.length)];
       // Can attack anyone except self
@@ -101,8 +109,7 @@ export const useGameEngine = () => {
       if (potentialTargets.length > 0) {
         const defender = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
         
-        // Use existing battle structure but logs will indicate insanity
-        setCurrentBattle({ hero: attacker, villain: defender }); // Note: 'hero' prop just means attacker here visually
+        setCurrentBattle({ hero: attacker, villain: defender });
         
         setLogs(prev => [...prev, {
           id: generateId(),
@@ -128,15 +135,16 @@ export const useGameEngine = () => {
       // No Battle, just normal day
       proceedDay([]);
     }
-  }, [day, characters]);
+  }, [day, characters, gameSettings]);
 
   const handleBattleComplete = (winner: Character, loser: Character, battleLogTexts: string[], winnerHp: number, loserHp: number) => {
     // Determine Loser Fate
     const isDeath = Math.random() < 0.2; // 20% chance of death
 
     // Update Characters immutably
+    // IMPORTANT: Calculate the new state here to pass to proceedDay
     const updatedChars = characters.map(char => {
-      // Sanity damage for both participants due to stress of battle
+      // Sanity damage
       const sanityDamage = Math.floor(Math.random() * 15) + 5; 
       let newSanity = char.currentSanity ?? ((char.stats?.intelligence || 50) * 2);
       newSanity = Math.max(0, newSanity - sanityDamage);
@@ -144,24 +152,23 @@ export const useGameEngine = () => {
       if (char.id === winner.id) {
         return {
           ...char,
-          currentHp: winnerHp, // Persist remaining HP
+          currentHp: winnerHp,
           currentSanity: newSanity,
           battlesWon: char.battlesWon + 1,
-          power: Math.min(100, char.power + 2) // Cap at 100
+          power: Math.min(100, char.power + 2)
         };
       }
       if (char.id === loser.id) {
         return {
           ...char,
-          currentHp: 0, // Loser is defeated
-          currentSanity: Math.max(0, newSanity - 10), // Loser loses more sanity
+          currentHp: 0, 
+          currentSanity: Math.max(0, newSanity - 10),
           status: isDeath ? Status.DEAD : Status.INJURED
         };
       }
       return char;
     });
 
-    // Update Resources (Winner takes money - only if standard roles)
     if (winner.role !== Role.CIVILIAN) { 
       setFactionResources(prev => {
         const reward = 1000 + Math.floor(Math.random() * 500);
@@ -202,13 +209,13 @@ export const useGameEngine = () => {
       }
     ];
 
-    setCharacters(updatedChars);
     setCurrentBattle(null);
-    proceedDay(battleLogs, [winner.id, loser.id]);
+    // Pass the 'updatedChars' explicitly so proceedDay uses the post-battle state
+    // including deaths and injuries, instead of the stale 'characters' state.
+    proceedDay(battleLogs, [winner.id, loser.id], updatedChars);
   };
 
   const handleUseItem = (itemId: string, targetCharId: string, factionRole: Role) => {
-    // 1. Find and Decrement Item
     const resources = factionResources[factionRole];
     const itemIndex = resources.inventory.findIndex(i => i.id === itemId);
     
@@ -217,11 +224,9 @@ export const useGameEngine = () => {
 
     if (item.count <= 0) return;
 
-    // 2. Find Target Character
     const targetChar = characters.find(c => c.id === targetCharId);
     if (!targetChar) return;
 
-    // 3. Apply Effects
     let logMessage = '';
     let updatedChar = { ...targetChar };
     let gainedMoney = 0;
@@ -231,24 +236,16 @@ export const useGameEngine = () => {
         const healAmount = item.effectValue || 10;
         const maxHp = (updatedChar.stats?.stamina || 50) * 2;
         const currentHp = updatedChar.currentHp ?? maxHp;
-        
-        // Heal HP
         updatedChar.currentHp = Math.min(maxHp, currentHp + healAmount);
-
-        // Fix status if injured
         if (updatedChar.status === Status.INJURED) {
           updatedChar.status = Status.NORMAL;
-          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 부상을 치료하고 체력을 회복했습니다! (${Math.ceil(currentHp)} -> ${Math.ceil(updatedChar.currentHp)})`;
+          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 부상을 치료하고 체력을 회복했습니다!`;
         } else {
-          // Heal Stamina (if mechanism requires, but mostly visual here, let's boost sanity slightly too)
-          // Restore Sanity slightly with heal items
           const maxSanity = (updatedChar.stats?.intelligence || 50) * 2;
           updatedChar.currentSanity = Math.min(maxSanity, (updatedChar.currentSanity || maxSanity) + 5);
-          
-          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력을 회복했습니다. (${Math.ceil(currentHp)} -> ${Math.ceil(updatedChar.currentHp)})`;
+          logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력을 회복했습니다.`;
         }
         break;
-
       case 'BUFF_STRENGTH':
         const strAmount = item.effectValue || 5;
         if (updatedChar.stats) {
@@ -256,7 +253,6 @@ export const useGameEngine = () => {
         }
         logMessage = `${item.name} 투여! ${targetChar.name}의 근력이 ${strAmount} 상승했습니다.`;
         break;
-
       case 'BUFF_LUCK':
         const luckAmount = item.effectValue || 5;
         if (updatedChar.stats) {
@@ -264,10 +260,8 @@ export const useGameEngine = () => {
         }
         logMessage = `${item.name} 사용! ${targetChar.name}의 행운이 ${luckAmount} 상승했습니다.`;
         break;
-
       case 'GAMBLE_MONEY':
         const maxPrize = item.effectValue || 1000;
-        // 10% chance for big win, 40% small win, 50% lose
         const roll = Math.random();
         if (roll < 0.05) {
           gainedMoney = maxPrize;
@@ -279,26 +273,19 @@ export const useGameEngine = () => {
           logMessage = `${targetChar.name}이(가) ${item.name}를 긁었지만 꽝이었습니다...`;
         }
         break;
-      
       default:
         logMessage = `${targetChar.name}에게 ${item.name}을(를) 사용했습니다.`;
     }
 
-    // 4. Update State
-    // Update Character
     setCharacters(prev => prev.map(c => c.id === targetCharId ? updatedChar : c));
-
-    // Update Inventory & Money
     setFactionResources(prev => {
       const currentFaction = prev[factionRole];
       const newInventory = [...currentFaction.inventory];
-      
       if (newInventory[itemIndex].count > 1) {
         newInventory[itemIndex] = { ...newInventory[itemIndex], count: newInventory[itemIndex].count - 1 };
       } else {
         newInventory.splice(itemIndex, 1);
       }
-
       return {
         ...prev,
         [factionRole]: {
@@ -309,7 +296,6 @@ export const useGameEngine = () => {
       };
     });
 
-    // Add Log
     setLogs(prev => [...prev, {
       id: generateId(),
       day,
@@ -320,7 +306,7 @@ export const useGameEngine = () => {
   };
 
   const handleAddCharacter = (newCharData: Omit<Character, 'id' | 'status' | 'kills' | 'saves' | 'battlesWon'>) => {
-    // Sanity & HP Initialization
+    // Calculate derived stats
     const intelligence = newCharData.stats?.intelligence || 50;
     const stamina = newCharData.stats?.stamina || 50;
     const maxSanity = intelligence * 2;
@@ -336,12 +322,11 @@ export const useGameEngine = () => {
       currentSanity: maxSanity,
       currentHp: maxHp,
       isInsane: false,
-      housing: { themeId: 'default_room', items: [] } // Init empty housing
+      housing: { themeId: 'default_room', items: [] } 
     };
     
     setCharacters(prev => [...prev, newChar]);
     
-    // Default system log
     const systemLogs: LogEntry[] = [{
       id: generateId(),
       day: day,
@@ -350,7 +335,6 @@ export const useGameEngine = () => {
       timestamp: Date.now()
     }];
 
-    // Relationship logs
     if (newChar.relationships && newChar.relationships.length > 0) {
       newChar.relationships.forEach((rel, idx) => {
         systemLogs.push({
@@ -362,8 +346,18 @@ export const useGameEngine = () => {
         });
       });
     }
-    
     setLogs(prev => [...prev, ...systemLogs]);
+  };
+
+  const handleUpdateCharacter = (updatedChar: Character) => {
+    setCharacters(prev => prev.map(c => c.id === updatedChar.id ? updatedChar : c));
+    setLogs(prev => [...prev, {
+      id: generateId(),
+      day: day,
+      message: `[관리자] "${updatedChar.name}"의 정보가 수정되었습니다.`,
+      type: 'INFO',
+      timestamp: Date.now()
+    }]);
   };
 
   const handleDeleteCharacter = (id: string) => {
@@ -403,6 +397,7 @@ export const useGameEngine = () => {
     setDay(1);
     setCharacters(INITIAL_CHARACTERS);
     setFactionResources(INITIAL_RESOURCES);
+    setGameSettings(INITIAL_SETTINGS);
     setLogs([{
       id: generateId(),
       day: 1,
@@ -419,7 +414,7 @@ export const useGameEngine = () => {
       version: 1,
       type,
       timestamp: Date.now(),
-      characters, // Always export current state of characters
+      characters, 
     };
 
     if (type === 'FULL') {
@@ -430,7 +425,6 @@ export const useGameEngine = () => {
         logs
       };
     } else {
-      // For Roster export, we sanitize character status to default
       const cleanCharacters = characters.map(c => ({
         ...c,
         status: Status.NORMAL,
@@ -450,13 +444,11 @@ export const useGameEngine = () => {
 
   const importData = (data: SaveData) => {
     if (data.type === 'FULL') {
-      // Full Game Load
       if (data.day) setDay(data.day);
       if (data.characters) setCharacters(data.characters);
       if (data.factionResources) setFactionResources(data.factionResources);
       if (data.logs) setLogs(data.logs);
       
-      // Add a system log indicating load
       setLogs(prev => [...prev, {
         id: generateId(),
         day: data.day || 1,
@@ -466,8 +458,6 @@ export const useGameEngine = () => {
       }]);
 
     } else if (data.type === 'ROSTER') {
-      // Roster Load (New Game with imported chars)
-      // We assume data.characters are already sanitized or we sanitize them here again for safety
       const importedChars = data.characters.map(c => ({
         ...c,
         status: Status.NORMAL,
@@ -502,8 +492,11 @@ export const useGameEngine = () => {
     isAddCharModalOpen,
     setIsAddCharModalOpen,
     setHousingModalChar,
+    gameSettings, // Export Settings
+    setGameSettings, // Export Setter
     handleNextDay,
     handleAddCharacter,
+    handleUpdateCharacter,
     handleDeleteCharacter,
     handleHousingSave,
     handleReset,
