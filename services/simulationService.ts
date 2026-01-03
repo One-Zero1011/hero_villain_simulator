@@ -314,54 +314,79 @@ export const processDailyEvents = (
 
   // --- Phase 5: Relationship Evolution (Lovers) ---
   // Logic: 10% chance if affinity >= 100
-  // Check settings: Minor-Adult and Family constraints
   
   const romanceUpdates = new Map<string, string>(); // Key: "id1-id2", Value: New RelationType
 
-  updatedCharacters.forEach(actor => {
-    actor.relationships.forEach(rel => {
-      // 1. Check eligibility conditions
-      if ((rel.affinity || 0) < 100) return; // Must be 100
-      if (rel.type === '연인' || rel.type === '부부') return; // Already lovers
-      
-      const target = updatedCharacters.find(c => c.id === rel.targetId);
-      if (!target || target.status === Status.DEAD) return;
+  // Check if global no romance setting is active
+  if (!settings.globalNoRomance) {
+    updatedCharacters.forEach(actor => {
+      // Dead characters cannot start romances
+      if (actor.status === Status.DEAD) return;
 
-      // Ensure we haven't already processed this pair in this loop
-      const keyForward = `${actor.id}-${target.id}`;
-      const keyBackward = `${target.id}-${actor.id}`;
-      if (romanceUpdates.has(keyForward) || romanceUpdates.has(keyBackward)) return;
+      actor.relationships.forEach(rel => {
+        // 1. Check eligibility conditions
+        if ((rel.affinity || 0) < 100) return; // Must be 100
+        if (rel.type === '연인' || rel.type === '부부') return; // Already lovers
+        
+        // Insanity check removed per request: Insane characters CAN romance now.
 
-      // 2. Check Random Chance (10%)
-      if (Math.random() > 0.1) return;
+        const target = updatedCharacters.find(c => c.id === rel.targetId);
+        if (!target || target.status === Status.DEAD) return;
 
-      // 3. Check Settings Constraints
-      // Constraint A: Minor-Adult Dating
-      if (settings.preventMinorAdultDating) {
-        const isActorAdult = actor.age >= 20;
-        const isTargetAdult = target.age >= 20;
-        if (isActorAdult !== isTargetAdult) return; // Different age groups -> Block
-      }
+        // Ensure we haven't already processed this pair in this loop
+        const keyForward = `${actor.id}-${target.id}`;
+        const keyBackward = `${target.id}-${actor.id}`;
+        if (romanceUpdates.has(keyForward) || romanceUpdates.has(keyBackward)) return;
 
-      // Constraint B: Family Dating
-      if (!settings.allowFamilyDating) {
-        // Check if current relationship is family type
-        if (FAMILY_RELATIONSHIPS.includes(rel.type)) return;
-      }
+        // 2. Check Settings Constraints
+        
+        // Constraint A: Pure Love Mode (Monogamy)
+        if (settings.pureLoveMode) {
+          const actorHasLover = actor.relationships.some(r => r.type === '연인' || r.type === '부부');
+          const targetHasLover = target.relationships.some(r => r.type === '연인' || r.type === '부부');
+          
+          // Race condition check: Check if they ALREADY got a lover in this specific loop cycle
+          const actorGettingLover = Array.from(romanceUpdates.keys()).some(k => k.includes(actor.id));
+          const targetGettingLover = Array.from(romanceUpdates.keys()).some(k => k.includes(target.id));
 
-      // 4. Evolve to Lovers
-      romanceLogs.push({
-        id: generateId(),
-        day: nextDay,
-        message: `💖 [축하합니다] ${actor.name}와(과) ${target.name}의 호감도가 극에 달해 연인이 되었습니다!`,
-        type: 'ROMANCE',
-        timestamp: Date.now()
+          if (actorHasLover || targetHasLover || actorGettingLover || targetGettingLover) return; // One of them is taken
+        }
+
+        // Constraint B: Gender Settings (Same-Sex / Hetero)
+        const isSameSex = actor.gender === target.gender;
+        if (isSameSex && !settings.allowSameSex) return;
+        if (!isSameSex && !settings.allowHetero) return;
+
+        // Constraint C: Minor-Adult Dating
+        if (settings.preventMinorAdultDating) {
+          const isActorAdult = actor.age >= 20;
+          const isTargetAdult = target.age >= 20;
+          if (isActorAdult !== isTargetAdult) return; // Different age groups -> Block
+        }
+
+        // Constraint D: Family Dating
+        if (!settings.allowFamilyDating) {
+          // Check if current relationship is family type
+          if (FAMILY_RELATIONSHIPS.includes(rel.type)) return;
+        }
+
+        // 3. Check Random Chance (10%)
+        if (Math.random() > 0.1) return;
+
+        // 4. Evolve to Lovers
+        romanceLogs.push({
+          id: generateId(),
+          day: nextDay,
+          message: `💖 [축하합니다] ${actor.name}와(과) ${target.name}의 호감도가 극에 달해 연인이 되었습니다!`,
+          type: 'ROMANCE',
+          timestamp: Date.now()
+        });
+
+        // Mark for update (Both directions)
+        romanceUpdates.set(keyForward, '연인');
       });
-
-      // Mark for update (Both directions)
-      romanceUpdates.set(keyForward, '연인');
     });
-  });
+  }
 
   // Apply Phase 5 Updates
   if (romanceUpdates.size > 0) {
@@ -388,6 +413,9 @@ export const processDailyEvents = (
   const breakupUpdates = new Set<string>(); // Key: "id1-id2"
 
   updatedCharacters.forEach(actor => {
+    // Dead characters do not initiate breakups
+    if (actor.status === Status.DEAD) return;
+
     actor.relationships.forEach(rel => {
       // Only process '연인' relationships
       if (rel.type !== '연인') return;

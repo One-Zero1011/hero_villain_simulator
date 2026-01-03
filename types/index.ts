@@ -157,6 +157,13 @@ export interface SaveData {
 
 // --- Game Settings ---
 export interface GameSettings {
+  // Constraints
   preventMinorAdultDating: boolean; // 미성년자-성인 연애 금지 (Default: true)
   allowFamilyDating: boolean; // 가족끼리 연애 허용 (Default: false)
+  
+  // Relationship Modes
+  pureLoveMode: boolean; // 순애 모드: 양다리 불가 (Default: true)
+  allowSameSex: boolean; // 동성 연애 허용 (Default: false)
+  allowHetero: boolean;  // 이성 연애 허용 (Default: true)
+  globalNoRomance: boolean; // 우정 모드: 연애 발생 안함 (Default: false)
 }

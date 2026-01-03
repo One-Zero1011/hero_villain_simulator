@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Character, Role } from '../../types/index';
-import { Shield, Skull, Sword, Zap, HeartPulse, Flame, AlertTriangle, SkipForward, User } from 'lucide-react';
+import { Shield, Skull, Sword, SkipForward, User } from 'lucide-react';
 import { calculateBattleDamage, getBattleFlavorText } from '../../utils/battleLogic';
 
 interface Props {
@@ -14,7 +14,7 @@ type Side = 'left' | 'right';
 
 interface FloatingText {
   id: number;
-  side: Side; // Changed from Role to Side to support same-role battles
+  side: Side;
   text: string;
   type: 'damage' | 'crit' | 'glancing';
 }
@@ -40,6 +40,13 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   const [hitFlash, setHitFlash] = useState<Side | null>(null);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  // Timer Refs for cleanup
+  const turnTimerRef = useRef<number | null>(null);
+  const visualTimerRef = useRef<number | null>(null);
+  const damageTimerRef = useRef<number | null>(null);
+  const finishTimerRef = useRef<number | null>(null);
+  const textTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (logsEndRef.current) {
@@ -47,20 +54,36 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     }
   }, [logs]);
 
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+      if (visualTimerRef.current) clearTimeout(visualTimerRef.current);
+      if (damageTimerRef.current) clearTimeout(damageTimerRef.current);
+      if (finishTimerRef.current) clearTimeout(finishTimerRef.current);
+      if (textTimerRef.current) clearTimeout(textTimerRef.current);
+    };
+  }, []);
+
   // Turn Loop
   useEffect(() => {
     if (isFinished) return;
 
-    const timer = setTimeout(() => {
+    turnTimerRef.current = setTimeout(() => {
       handleTurn();
     }, 1500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+    };
   }, [turn, isFinished]);
 
   const addFloatingText = (side: Side, text: string, type: 'damage' | 'crit' | 'glancing') => {
     const id = Date.now() + Math.random();
     setFloatingTexts(prev => [...prev, { id, side, text, type }]);
+    
+    // We don't track individual text timers, just let them float. 
+    // React state update on unmount is safe in modern React (no-op), but good practice to avoid if possible.
     setTimeout(() => {
       setFloatingTexts(prev => prev.filter(ft => ft.id !== id));
     }, 800);
@@ -82,8 +105,8 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     const result = calculateBattleDamage(attackerChar, defenderChar);
     const damage = result.damage;
 
-    // Visuals
-    setTimeout(() => {
+    // Visuals Delay
+    visualTimerRef.current = setTimeout(() => {
        if (isFinished) return;
        setHitFlash(defenderSide);
        
@@ -101,8 +124,8 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
        addFloatingText(defenderSide, floatText, floatType);
     }, 200);
 
-    // Apply Damage
-    setTimeout(() => {
+    // Apply Damage & Logic Delay
+    damageTimerRef.current = setTimeout(() => {
         if (isFinished) return;
 
         let newLeftHp = leftHp;
@@ -124,7 +147,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
 
         if (newDefenderHp === 0) {
             setIsFinished(true);
-            setTimeout(() => {
+            finishTimerRef.current = setTimeout(() => {
                 const winnerHp = isLeftTurn ? newLeftHp : newRightHp;
                 onComplete(attackerChar, defenderChar, [...logs, `[Turn ${turn + 1}] ${logMsg}`], winnerHp, 0);
             }, 2000);
@@ -139,6 +162,11 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
   const handleSkip = () => {
     if (isFinished) return;
     setIsFinished(true);
+    
+    // Clear any pending turn logic
+    if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+    if (visualTimerRef.current) clearTimeout(visualTimerRef.current);
+    if (damageTimerRef.current) clearTimeout(damageTimerRef.current);
 
     let currentLeftHp = leftHp;
     let currentRightHp = rightHp;
@@ -173,7 +201,7 @@ const BattleArena: React.FC<Props> = ({ hero, villain, onComplete }) => {
     const loser = currentLeftHp > 0 ? villain : hero;
     const winnerHp = currentLeftHp > 0 ? currentLeftHp : currentRightHp;
 
-    setTimeout(() => {
+    finishTimerRef.current = setTimeout(() => {
         onComplete(winner, loser, [...logs, ...newLogs], winnerHp, 0);
     }, 1000);
   };

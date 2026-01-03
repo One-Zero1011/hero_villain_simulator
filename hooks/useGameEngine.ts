@@ -57,7 +57,11 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
 
 const INITIAL_SETTINGS: GameSettings = {
   preventMinorAdultDating: true,
-  allowFamilyDating: false
+  allowFamilyDating: false,
+  pureLoveMode: true,    // 순애 모드 기본 ON
+  allowSameSex: false,   // 동성 연애 기본 OFF
+  allowHetero: true,     // 이성 연애 기본 ON
+  globalNoRomance: false // 우정 모드 기본 OFF
 };
 
 export const useGameEngine = () => {
@@ -325,7 +329,36 @@ export const useGameEngine = () => {
       housing: { themeId: 'default_room', items: [] } 
     };
     
-    setCharacters(prev => [...prev, newChar]);
+    // Update State (Add new char AND update targets of mutual relationships)
+    setCharacters(prev => {
+      const updatedPrev = prev.map(existingChar => {
+        // Check if newChar has a mutual relationship pointing to this existingChar
+        const relFromNew = newChar.relationships.find(r => r.targetId === existingChar.id && r.isMutual);
+        
+        if (relFromNew) {
+          // Verify reciprocation doesn't already exist (it shouldn't for a new char, but for safety)
+          const alreadyExists = existingChar.relationships.some(r => r.targetId === newChar.id);
+          
+          if (!alreadyExists) {
+            return {
+              ...existingChar,
+              relationships: [
+                ...existingChar.relationships,
+                {
+                  targetId: newChar.id,
+                  targetName: newChar.name,
+                  type: relFromNew.type,
+                  isMutual: true,
+                  affinity: relFromNew.affinity
+                }
+              ]
+            };
+          }
+        }
+        return existingChar;
+      });
+      return [...updatedPrev, newChar];
+    });
     
     const systemLogs: LogEntry[] = [{
       id: generateId(),
