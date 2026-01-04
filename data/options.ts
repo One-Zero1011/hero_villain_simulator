@@ -26,7 +26,8 @@ export const SUPERPOWERS = [
   '천재적 지능 (Super Intelligence)',
   '재생 능력 (Regeneration)',
   '그림자 이동 (Shadow Step)',
-  '없음 (Physical Training)'
+  '없음 (Physical Training)',
+  '기타 (직접 입력)'
 ];
 
 export const RELATIONSHIP_TYPES = [

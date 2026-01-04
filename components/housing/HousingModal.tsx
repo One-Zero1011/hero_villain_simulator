@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Character, Housing, PlacedHousingItem } from '../../types/index';
 import { HOUSING_THEMES, HOUSING_ITEMS } from '../../data/housingOptions';
 import { getInteractionAction } from '../../data/socialInteractions';
+import ConfirmModal from '../common/ConfirmModal';
 import { 
   X, Save, Home, Monitor, Armchair, Sword, Cat, 
   Flower2, Vault, Tv, Coffee, Target, Bed, Box, Trash2,
@@ -86,6 +87,9 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   
+  // Alert State
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
   // Direct DOM Access for Performance (Map of CharID -> DivElement)
   const charRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -120,7 +124,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
 
   const addItem = (itemId: string) => {
     if (placedItems.length >= 6) {
-      alert("가구는 최대 6개까지 배치할 수 있습니다!");
+      setAlertMessage("가구는 최대 6개까지 배치할 수 있습니다!");
       return;
     }
     setPlacedItems(prev => [...prev, {
@@ -244,11 +248,13 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                state.isWaiting = false;
             }, Math.random() * 3000 + 1000);
           } else {
-            // Move
-            const speed = Math.max(5, Math.min(20, dist * 0.8)); // Adaptive speed
-            const moveStep = speed * dt;
-            state.pos.x += (dx / dist) * moveStep;
-            state.pos.y += (dy / dist) * moveStep;
+            // Move (Prevent divide by zero)
+            if (dist > 0.01) {
+              const speed = Math.max(5, Math.min(20, dist * 0.8)); // Adaptive speed
+              const moveStep = speed * dt;
+              state.pos.x += (dx / dist) * moveStep;
+              state.pos.y += (dy / dist) * moveStep;
+            }
             
             // DOM Update
             const el = charRefs.current.get(char.id);
@@ -282,7 +288,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                     setTimeout(() => { 
                       if (state) {
                         state.isInteracting = false; 
-                        state.interactingItemId = null; // Clear
+                        state.interactingItemId = null;
                       }
                     }, 3000);
                   }
@@ -344,6 +350,17 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      
+      {/* Alert Modal */}
+      <ConfirmModal 
+        isOpen={!!alertMessage}
+        title="알림"
+        message={alertMessage}
+        confirmText="확인"
+        onClose={() => setAlertMessage(null)}
+        onlyOk={true}
+      />
+
       <div className="bg-[#232323] w-full max-w-6xl h-[90vh] rounded-2xl border border-[#404040] shadow-2xl overflow-hidden flex flex-col md:flex-row text-gray-200">
         
         {/* Left: Interactive Room Area */}
@@ -354,7 +371,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
           onMouseLeave={handleMouseUp}
           className={`relative flex-1 transition-all duration-500 ${currentTheme.styleClass} overflow-hidden cursor-crosshair`}
         >
-          {/* Room Label */}
+          {/* ... (Existing Room Render Logic - No changes needed) ... */}
           <div className="absolute top-4 left-4 bg-black/50 backdrop-blur px-3 py-1 rounded-full border border-white/10 text-white text-sm flex items-center gap-2 z-10 select-none">
             <Home className="w-4 h-4" />
             <span>{character.name}의 {currentTheme.name}</span>
@@ -391,7 +408,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
             const bubble = chatBubbles.find(b => b.charId === char.id);
             const isOwner = char.id === character.id;
             
-            // Calculate Interaction Class
             const physicsState = physicsRefs.current.get(char.id);
             const interactingId = physicsState?.interactingItemId;
             let actionClass = '';
@@ -413,11 +429,11 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
                   left: `50%`, top: `50%`, transform: 'translate(-50%, -50%)'
                 }}
               >
-                {/* Chat Bubble (Action Description) */}
+                {/* Chat Bubble */}
                 {bubble && (
                   <div className={`absolute -top-16 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap animate-bounce shadow-lg z-[100] border-2
                     ${bubble.type === 'SOCIAL' 
-                      ? 'bg-purple-600 text-white border-purple-400 italic' // Different style for actions
+                      ? 'bg-purple-600 text-white border-purple-400 italic'
                       : 'bg-white text-slate-900 border-white'}
                   `}>
                     {bubble.type === 'SOCIAL' && <Activity className="w-3 h-3 inline mr-1 mb-0.5" />}
@@ -457,6 +473,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
 
         {/* Right: Controls */}
         <div className="w-full md:w-80 bg-[#2a2a2a] border-l border-[#404040] flex flex-col z-20">
+          {/* ... (Existing Right Panel Content - No changes needed) ... */}
           <div className="p-4 border-b border-[#404040] flex justify-between items-center bg-[#1c1c1c]">
             <h2 className="font-bold text-white">공간 관리</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -573,6 +590,7 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         </div>
       </div>
       <style>{`
+        /* ... (Same styles as before) ... */
         @keyframes shake {
           0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
           25% { transform: translate(-50%, -50%) rotate(-5deg); }
@@ -581,17 +599,14 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-shake {
           animation: shake 0.5s ease-in-out infinite;
         }
-        
         .animate-sit {
           transform: translate(-50%, -50%) scale(0.9) translateY(5px);
           transition: transform 0.5s ease-in-out;
         }
-        
         .animate-sleep {
           transform: translate(-50%, -50%) rotate(90deg) scale(0.9);
           transition: transform 0.8s ease-in-out;
         }
-        
         @keyframes type {
           0% { transform: translate(-50%, -50%) translateX(0); }
           25% { transform: translate(-50%, -50%) translateX(-2px); }
@@ -601,7 +616,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-type {
           animation: type 0.1s infinite;
         }
-        
         @keyframes attack {
           0% { transform: translate(-50%, -50%) rotate(0); }
           50% { transform: translate(-50%, -50%) rotate(-20deg) scale(1.1); }
@@ -610,7 +624,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-attack {
           animation: attack 0.5s infinite;
         }
-        
         @keyframes punch {
           0% { transform: translate(-50%, -50%) translateX(0); }
           50% { transform: translate(-50%, -50%) translateX(10px) rotate(5deg); }
@@ -619,7 +632,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-punch {
           animation: punch 0.3s infinite;
         }
-        
         @keyframes drink {
           0% { transform: translate(-50%, -50%) rotate(0); }
           50% { transform: translate(-50%, -50%) rotate(-10deg) translateY(-5px); }
@@ -628,7 +640,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-drink {
           animation: drink 1.5s infinite ease-in-out;
         }
-        
         @keyframes watch {
           0%, 100% { transform: translate(-50%, -50%) scale(1); }
           50% { transform: translate(-50%, -50%) scale(1.05); }
@@ -636,7 +647,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-watch {
           animation: watch 2s infinite ease-in-out;
         }
-        
         @keyframes bob {
           0%, 100% { transform: translate(-50%, -50%) translateY(0); }
           50% { transform: translate(-50%, -50%) translateY(-5px); }
@@ -644,7 +654,6 @@ const HousingModal: React.FC<Props> = ({ character, allCharacters, isOpen, onClo
         .animate-bob {
           animation: bob 1s infinite ease-in-out;
         }
-        
         @keyframes shake-fast {
           0%, 100% { transform: translate(-50%, -50%) rotate(0); }
           25% { transform: translate(-50%, -50%) rotate(2deg); }

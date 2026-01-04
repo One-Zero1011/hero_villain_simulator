@@ -1,16 +1,19 @@
 
-import React from 'react';
-import { Character, Role, Status } from '../../types/index';
-import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff, Edit2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Character, Role, Status, Item } from '../../types/index';
+import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff, Edit2, Sword, Shirt, Footprints, HardHat, Disc, CircleDot, X, Box } from 'lucide-react';
 
 interface Props {
   character: Character;
   onDelete: (id: string) => void;
   onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
+  onRequestUnequip?: (charId: string, slot: string, item: Item) => void; // Updated Prop
 }
 
-const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHousing }) => {
+const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHousing, onRequestUnequip }) => {
+  const [showEquipment, setShowEquipment] = useState(false);
+
   const isDead = character.status === Status.DEAD;
   const isInjured = character.status === Status.INJURED;
   const isInsane = character.isInsane;
@@ -53,7 +56,6 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
 
   // Stats Logic
   const maxHp = (character.stats?.stamina || 50) * 2;
-  // Use persistent currentHp if available, fallback to legacy calc for safety
   const currentHp = character.currentHp ?? (isInjured ? Math.round(maxHp * 0.3) : maxHp);
   const hpPercent = (currentHp / maxHp) * 100;
   
@@ -71,13 +73,59 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
     return 'text-gray-400'; // Neutral
   };
 
+  const handleUnequipClick = (item: Item | null | undefined, slot: string) => {
+    if (!item || !onRequestUnequip) return;
+    // Trigger modal via prop instead of window.confirm
+    onRequestUnequip(character.id, slot, item);
+  };
+
+  const renderEquipSlot = (slotName: string, icon: React.ReactNode, item?: Item | null, minimal: boolean = false) => {
+    const title = item 
+      ? `${item.name}\n${item.description}\n[효과]\n${item.statBonus ? Object.entries(item.statBonus).map(([k,v]) => `${k.toUpperCase()} +${v}`).join('\n') : '없음'}`
+      : slotName;
+
+    return (
+      <div 
+        className={`relative group transition-all flex items-center justify-center
+          ${minimal ? 'w-8 h-8 rounded' : 'w-10 h-10 md:w-12 md:h-12 rounded-lg'}
+          ${item 
+            ? 'bg-[#252525] border border-blue-500/50 cursor-pointer hover:bg-[#333] hover:border-red-500/50 shadow-[0_0_10px_rgba(59,130,246,0.2)]' 
+            : 'bg-black/40 border border-[#333] opacity-60'
+          }`}
+        title={title}
+        onClick={() => handleUnequipClick(item, slotName)}
+      >
+        {item ? (
+          <span className="text-xl select-none drop-shadow-md">{item.icon}</span>
+        ) : (
+          <div className="text-[#555]">{icon}</div>
+        )}
+        
+        {/* Equipped Indicator */}
+        {item && <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-green-500 rounded-full border border-[#1c1c1c]"></div>}
+        
+        {/* Slot Label (Only when empty) */}
+        {!item && !minimal && (
+          <span className="absolute bottom-0.5 text-[8px] text-gray-600 font-mono uppercase">{slotName}</span>
+        )}
+
+        {/* Unequip Overlay Hint */}
+        {item && (
+          <div className="absolute inset-0 bg-red-900/80 text-white text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-bold rounded z-10 backdrop-blur-sm">
+            <X className="w-4 h-4" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={`relative p-4 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 
       ${styles.wrapper} 
       ${isDead ? 'opacity-50 grayscale' : ''} 
       ${isInsane ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : ''}
       ${isInjured && !isInsane ? 'border-orange-500/50 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' : 'border-[#333333]'}
-      group border border-t-0 border-r-0 border-b-0 overflow-hidden`}
+      group border border-t-0 border-r-0 border-b-0 overflow-hidden flex flex-col ${showEquipment ? 'min-h-[24rem]' : 'h-full'}`}
     >
       
       {/* Header */}
@@ -214,29 +262,50 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
 
       {/* Relationships */}
       {character.relationships.length > 0 && (
-         <div className="mb-3">
-           <div className="text-[10px] text-gray-500 mb-0.5">관계</div>
+         <div className="mb-3 flex-1">
+           <div className="text-[10px] text-gray-500 mb-0.5 flex justify-between">
+             <span>♥ 호감도 관계</span>
+           </div>
            <div className="flex flex-wrap gap-1">
-             {character.relationships.slice(0, 3).map((rel, idx) => (
-               <span key={idx} className="text-[10px] bg-[#333333] px-1.5 py-0.5 rounded text-gray-300 border border-[#404040] flex items-center gap-1">
-                 {rel.targetName}:{rel.type}
-                 {rel.affinity !== undefined && (
-                   <span className={`text-[9px] font-mono ${getAffinityColor(rel.affinity)}`}>
-                     {rel.affinity > 0 ? '+' : ''}{rel.affinity}
-                   </span>
-                 )}
-               </span>
-             ))}
+             {character.relationships.slice(0, 3).map((rel, idx) => {
+               // Determine heart icon based on affinity
+               let heartIcon = '♥';
+               if ((rel.affinity || 0) < 0) heartIcon = '💔';
+               else if ((rel.affinity || 0) >= 80) heartIcon = '💖';
+
+               return (
+                 <span key={idx} className="text-[10px] bg-[#333333] px-1.5 py-0.5 rounded text-gray-300 border border-[#404040] flex items-center gap-1 truncate max-w-full">
+                   <span className="truncate">{rel.targetName}</span>
+                   <span className="text-gray-500 mx-0.5">|</span>
+                   <span className={getAffinityColor(rel.affinity)}>{rel.type}</span>
+                   {rel.affinity !== undefined && (
+                     <span className={`ml-1 px-1 rounded-sm bg-black/30 font-mono flex items-center gap-0.5 ${getAffinityColor(rel.affinity)}`}>
+                       <span className="text-[8px]">{heartIcon}</span>
+                       {rel.affinity > 0 ? '+' : ''}{rel.affinity}
+                     </span>
+                   )}
+                 </span>
+               );
+             })}
              {character.relationships.length > 3 && (
-               <span className="text-[10px] text-gray-500">+{character.relationships.length - 3}</span>
+               <span className="text-[10px] text-gray-500 flex items-center bg-[#333] px-1 rounded">+{character.relationships.length - 3}</span>
              )}
            </div>
          </div>
       )}
 
-      {/* Actions */}
-      <div className="flex justify-between border-t border-[#333333] pt-3 mt-2 items-center">
+      {/* Actions Footer */}
+      <div className="flex justify-between border-t border-[#333333] pt-3 mt-auto items-center">
         <div className="flex gap-2">
+          {!isDead && (
+            <button 
+              onClick={() => setShowEquipment(true)}
+              className="px-2 py-1 text-xs font-medium text-blue-300 hover:text-white hover:bg-blue-900/30 rounded transition-colors flex items-center gap-1 border border-blue-900/50"
+              title="장비 확인"
+            >
+              <Shirt className="w-3 h-3" /> 장비
+            </button>
+          )}
           {!isDead && (
             <button 
               onClick={() => onOpenHousing(character)}
@@ -289,6 +358,68 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
       {isDead && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 pointer-events-none rounded-lg z-10 backdrop-grayscale">
           <span className="text-2xl font-bold text-red-500 -rotate-12 border-4 border-red-500 px-4 py-1 opacity-80">DEAD</span>
+        </div>
+      )}
+
+      {/* --- Equipment Overlay (Slide-up or Fade-in) --- */}
+      {showEquipment && (
+        <div className="absolute inset-0 bg-[#1c1c1c]/95 z-50 flex flex-col p-4 animate-fade-in backdrop-blur-sm rounded-lg overflow-hidden">
+          <div className="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
+            <h4 className="text-gray-200 font-bold flex items-center gap-2">
+              <Shirt className="w-4 h-4 text-blue-400" />
+              장비 슬롯
+            </h4>
+            <button 
+              onClick={() => setShowEquipment(false)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-between gap-2 relative">
+            {/* Left Column: Armor */}
+            <div className="flex flex-col gap-3 z-10">
+              {renderEquipSlot('HEAD', <HardHat className="w-4 h-4" />, character.equipment?.head)}
+              {renderEquipSlot('BODY', <Shirt className="w-4 h-4" />, character.equipment?.body)}
+              {renderEquipSlot('LEGS', <div className="text-[10px] font-bold">P</div>, character.equipment?.legs)}
+              {renderEquipSlot('FEET', <Footprints className="w-4 h-4" />, character.equipment?.feet)}
+            </div>
+
+            {/* Center: Character Image (Visual Representation) */}
+            <div className="flex-1 h-full flex items-center justify-center relative">
+               {character.imageUrl ? (
+                 <img 
+                   src={character.imageUrl} 
+                   alt="Character" 
+                   className="h-full max-h-40 md:max-h-48 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                 />
+               ) : (
+                 <div className="w-20 h-20 rounded-full bg-[#333] flex items-center justify-center border-2 border-[#444]">
+                   {styles.icon}
+                 </div>
+               )}
+               {/* Background Lines for connection effect */}
+               <div className="absolute inset-0 -z-10 opacity-20 pointer-events-none">
+                  <div className="absolute top-[10%] left-0 w-1/2 h-px bg-gradient-to-r from-blue-500 to-transparent"></div>
+                  <div className="absolute top-[10%] right-0 w-1/2 h-px bg-gradient-to-l from-blue-500 to-transparent"></div>
+                  <div className="absolute bottom-[10%] left-0 w-1/2 h-px bg-gradient-to-r from-blue-500 to-transparent"></div>
+                  <div className="absolute bottom-[10%] right-0 w-1/2 h-px bg-gradient-to-l from-blue-500 to-transparent"></div>
+               </div>
+            </div>
+
+            {/* Right Column: Weapon & Accessories */}
+            <div className="flex flex-col gap-3 z-10">
+              {renderEquipSlot('WEAPON', <Sword className="w-4 h-4" />, character.equipment?.weapon)}
+              {renderEquipSlot('EARRING', <div className="text-[10px] font-bold">E</div>, character.equipment?.earring)}
+              {renderEquipSlot('NECKLACE', <Disc className="w-4 h-4" />, character.equipment?.necklace)}
+              {renderEquipSlot('RING', <CircleDot className="w-4 h-4" />, character.equipment?.ring)}
+            </div>
+          </div>
+          
+          <div className="mt-4 text-[10px] text-center text-gray-500">
+            아이템을 클릭하여 장비 해제
+          </div>
         </div>
       )}
     </div>

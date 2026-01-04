@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Save, Upload, Download, FileJson, Check, X, RefreshCw, Smartphone, Users } from 'lucide-react';
 import { SaveData, SaveType } from '../../types/index';
+import ConfirmModal from '../common/ConfirmModal';
 
 interface Props {
   isOpen: boolean;
@@ -10,17 +11,40 @@ interface Props {
   onImport: (data: SaveData) => void;
 }
 
+type ModalState = 'NONE' | 'ALERT' | 'CONFIRM';
+
 const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport }) => {
   const [activeTab, setActiveTab] = useState<'FULL' | 'ROSTER'>('FULL');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string>("");
 
+  // Internal Modal State
+  const [modalState, setModalState] = useState<ModalState>('NONE');
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState<React.ReactNode>("");
+  const [pendingImportData, setPendingImportData] = useState<SaveData | null>(null);
+
   if (!isOpen) return null;
 
-  // Helper to show temporary message
-  const showMessage = (msg: string) => {
+  // Helper to show temporary inline message
+  const showInlineMessage = (msg: string) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 3000);
+  };
+
+  // Helper to trigger custom alert modal
+  const triggerAlert = (title: string, msg: string) => {
+    setModalTitle(title);
+    setModalMessage(msg);
+    setModalState('ALERT');
+  };
+
+  // Helper to trigger custom confirm modal
+  const triggerConfirm = (title: string, msg: string, data: SaveData) => {
+    setModalTitle(title);
+    setModalMessage(msg);
+    setPendingImportData(data);
+    setModalState('CONFIRM');
   };
 
   // --- Handlers ---
@@ -29,9 +53,9 @@ const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport })
     try {
       const data = onExport('FULL');
       localStorage.setItem('hv_sim_autosave', JSON.stringify(data));
-      showMessage("브라우저에 현재 상태가 저장되었습니다.");
+      showInlineMessage("브라우저에 현재 상태가 저장되었습니다.");
     } catch (e) {
-      alert("저장 공간이 부족하거나 오류가 발생했습니다.");
+      triggerAlert("저장 실패", "저장 공간이 부족하거나 오류가 발생했습니다.");
     }
   };
 
@@ -39,16 +63,18 @@ const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport })
     try {
       const saved = localStorage.getItem('hv_sim_autosave');
       if (!saved) {
-        alert("저장된 데이터가 없습니다.");
+        triggerAlert("불러오기 실패", "저장된 데이터가 없습니다.");
         return;
       }
-      if (confirm("현재 진행 상황을 덮어쓰고 저장된 게임을 불러오시겠습니까?")) {
-        const data = JSON.parse(saved) as SaveData;
-        onImport(data);
-        onClose();
-      }
+      
+      const data = JSON.parse(saved) as SaveData;
+      triggerConfirm(
+        "불러오기 확인", 
+        "현재 진행 상황을 덮어쓰고 저장된 게임을 불러오시겠습니까?", 
+        data
+      );
     } catch (e) {
-      alert("데이터를 불러오는 중 오류가 발생했습니다.");
+      triggerAlert("오류", "데이터를 불러오는 중 오류가 발생했습니다.");
     }
   };
 
@@ -68,7 +94,7 @@ const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport })
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showMessage(type === 'FULL' ? "전체 게임 데이터가 다운로드되었습니다." : "캐릭터 명단이 다운로드되었습니다.");
+    showInlineMessage(type === 'FULL' ? "전체 게임 데이터가 다운로드되었습니다." : "캐릭터 명단이 다운로드되었습니다.");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,21 +109,19 @@ const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport })
         
         // Validation check based on active tab
         if (activeTab === 'FULL' && data.type !== 'FULL') {
-          alert("이 파일은 '전체 저장' 데이터가 아닙니다. 캐릭터 명단 탭에서 불러와주세요.");
+          triggerAlert("형식 오류", "이 파일은 '전체 저장' 데이터가 아닙니다.\n캐릭터 명단 탭에서 불러와주세요.");
           return;
         }
         
         // Confirm message based on type
         const confirmMsg = data.type === 'ROSTER' 
-          ? "캐릭터 명단을 불러와서 1일차부터 새 게임을 시작합니다. 계속하시겠습니까?" 
-          : "저장된 게임 상태를 불러옵니다. 현재 진행 상황은 사라집니다. 계속하시겠습니까?";
+          ? "캐릭터 명단을 불러와서 1일차부터 새 게임을 시작합니다.\n계속하시겠습니까?" 
+          : "저장된 게임 상태를 불러옵니다.\n현재 진행 상황은 사라집니다.\n계속하시겠습니까?";
 
-        if (confirm(confirmMsg)) {
-          onImport(data);
-          onClose();
-        }
+        triggerConfirm("파일 불러오기", confirmMsg, data);
+
       } catch (err) {
-        alert("잘못된 파일 형식이거나 손상된 데이터입니다.");
+        triggerAlert("오류", "잘못된 파일 형식이거나 손상된 데이터입니다.");
       }
     };
     reader.readAsText(file);
@@ -105,8 +129,30 @@ const SaveLoadModal: React.FC<Props> = ({ isOpen, onClose, onExport, onImport })
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleConfirmAction = () => {
+    if (pendingImportData) {
+      onImport(pendingImportData);
+      onClose(); // Close the SaveLoadModal entirely after successful import
+    }
+    setModalState('NONE');
+    setPendingImportData(null);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      
+      {/* Internal Confirm/Alert Modal */}
+      <ConfirmModal 
+        isOpen={modalState !== 'NONE'}
+        title={modalTitle}
+        message={modalMessage}
+        confirmText="확인"
+        onConfirm={modalState === 'CONFIRM' ? handleConfirmAction : undefined}
+        onClose={() => setModalState('NONE')}
+        onlyOk={modalState === 'ALERT'}
+        type={modalState === 'ALERT' ? 'danger' : 'info'}
+      />
+
       <div className="bg-[#232323] w-full max-w-lg rounded-2xl border border-[#404040] shadow-2xl flex flex-col overflow-hidden">
         
         {/* Header */}

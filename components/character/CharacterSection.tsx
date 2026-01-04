@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Character, FactionResources } from '../../types/index';
+import { Character, FactionResources, Item } from '../../types/index';
 import CharacterCard from './CharacterCard';
 import { Coins, Package, Search } from 'lucide-react';
 
@@ -14,11 +14,12 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
-  onOpenInventory: () => void; // New prop
+  onOpenInventory: () => void; 
+  onRequestUnequip: (charId: string, slot: string, item: Item) => void; // Updated Prop
 }
 
 const CharacterSection: React.FC<Props> = ({ 
-  title, icon, colorClass, badgeClass, characters, resources, onDelete, onEdit, onOpenHousing, onOpenInventory 
+  title, icon, colorClass, badgeClass, characters, resources, onDelete, onEdit, onOpenHousing, onOpenInventory, onRequestUnequip 
 }) => {
   return (
     <section>
@@ -74,6 +75,7 @@ const CharacterSection: React.FC<Props> = ({
             onDelete={onDelete} 
             onEdit={onEdit}
             onOpenHousing={onOpenHousing}
+            onRequestUnequip={onRequestUnequip} // Pass updated prop
           />
         ))}
         {characters.length === 0 && (

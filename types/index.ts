@@ -59,6 +59,20 @@ export interface Housing {
   items: PlacedHousingItem[];
 }
 
+// --- Equipment System ---
+export type EquipmentSlot = 'HEAD' | 'BODY' | 'LEGS' | 'FEET' | 'WEAPON' | 'EARRING' | 'NECKLACE' | 'RING';
+
+export interface Equipment {
+  head?: Item | null;
+  body?: Item | null;
+  legs?: Item | null;
+  feet?: Item | null;
+  weapon?: Item | null;
+  earring?: Item | null;
+  necklace?: Item | null;
+  ring?: Item | null;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -90,6 +104,9 @@ export interface Character {
   // Social
   relationships: Relationship[];
   
+  // Inventory & Equipment
+  equipment: Equipment; // Added Equipment Slots
+
   // Records
   kills: number;
   saves: number;
@@ -98,7 +115,7 @@ export interface Character {
 }
 
 // --- Item Effects ---
-export type EffectType = 'HEAL' | 'BUFF_STRENGTH' | 'BUFF_LUCK' | 'GAMBLE_MONEY';
+export type EffectType = 'HEAL' | 'BUFF_STRENGTH' | 'BUFF_LUCK' | 'GAMBLE_MONEY' | 'EQUIPMENT';
 
 export interface Item {
   id: string;
@@ -109,7 +126,10 @@ export interface Item {
   price?: number; 
   role?: Role | 'COMMON';
   effectType?: EffectType; 
-  effectValue?: number;    
+  effectValue?: number;
+  // Equipment Specifics
+  equipSlot?: EquipmentSlot;
+  statBonus?: Partial<Stats>;
 }
 
 export interface FactionResources {
@@ -122,8 +142,13 @@ export interface LogEntry {
   id: string;
   day: number;
   message: string;
-  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY' | 'ROMANCE'; // Added ROMANCE
+  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY' | 'ROMANCE'; 
   timestamp: number;
+  // New: Stat changes tracking
+  statChanges?: {
+    hp?: number;
+    sanity?: number;
+  };
 }
 
 export interface SimulationState {
@@ -166,4 +191,7 @@ export interface GameSettings {
   allowSameSex: boolean; // 동성 연애 허용 (Default: false)
   allowHetero: boolean;  // 이성 연애 허용 (Default: true)
   globalNoRomance: boolean; // 우정 모드: 연애 발생 안함 (Default: false)
+
+  // System
+  debugMode: boolean; // 디버그(치트) 모드 활성화 여부
 }

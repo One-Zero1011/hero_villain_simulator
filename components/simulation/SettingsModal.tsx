@@ -1,16 +1,26 @@
 
-import React from 'react';
-import { GameSettings } from '../../types/index';
-import { X, Settings as SettingsIcon, Heart, ShieldAlert, Users, HeartOff, UserCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { GameSettings, Role, FactionResources } from '../../types/index';
+import { GAME_ITEMS } from '../../data/items';
+import { X, Settings as SettingsIcon, Heart, ShieldAlert, Users, HeartOff, UserCheck, Bug, Terminal, Coins, Plus } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   settings: GameSettings;
+  resources: Record<Role, FactionResources>;
   onUpdateSettings: (newSettings: GameSettings) => void;
+  onDebugSetMoney: (role: Role, amount: number) => void;
+  onDebugAddItem: (role: Role, itemId: string, count: number) => void;
 }
 
-const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onUpdateSettings }) => {
+const SettingsModal: React.FC<Props> = ({ 
+  isOpen, onClose, settings, resources, onUpdateSettings, onDebugSetMoney, onDebugAddItem 
+}) => {
+  const [activeDebugRole, setActiveDebugRole] = useState<Role>(Role.HERO);
+  const [selectedItemId, setSelectedItemId] = useState(GAME_ITEMS[0].id);
+  const [moneyInput, setMoneyInput] = useState<string>('');
+
   if (!isOpen) return null;
 
   const toggleSetting = (key: keyof GameSettings) => {
@@ -20,9 +30,17 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onUpdateSet
     });
   };
 
+  const handleSetMoney = () => {
+    const amount = parseInt(moneyInput);
+    if (!isNaN(amount)) {
+      onDebugSetMoney(activeDebugRole, amount);
+      setMoneyInput('');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#232323] w-full max-w-md rounded-2xl border border-[#404040] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+      <div className="bg-[#232323] w-full max-w-lg rounded-2xl border border-[#404040] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         
         {/* Header */}
         <div className="p-4 border-b border-[#333333] flex justify-between items-center bg-[#1c1c1c]">
@@ -35,7 +53,7 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onUpdateSet
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 bg-[#2a2a2a] overflow-y-auto">
+        <div className="p-6 space-y-6 bg-[#2a2a2a] overflow-y-auto custom-scrollbar">
           
           {/* General Constraints */}
           <div className="space-y-3">
@@ -165,6 +183,95 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onUpdateSet
             <Heart className="w-3 h-3 inline mr-1 text-red-500" />
             호감도가 100에 도달하면 10% 확률로 연인이 됩니다.
           </div>
+
+          <hr className="border-[#404040] my-4" />
+
+          {/* Debug Mode Toggle */}
+          <div className="flex items-center justify-between p-3 bg-[#1c1c1c] rounded-xl border border-[#333]">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${settings.debugMode ? 'bg-lime-900/50 text-lime-400' : 'bg-gray-800 text-gray-400'}`}>
+                <Bug className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-gray-200">디버그 모드 (치트)</div>
+                <div className="text-[10px] text-gray-500">자금 조작 및 아이템 강제 추가 기능을 활성화합니다.</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => toggleSetting('debugMode')}
+              className={`w-12 h-6 rounded-full transition-colors relative ${settings.debugMode ? 'bg-lime-600' : 'bg-gray-600'}`}
+            >
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${settings.debugMode ? 'left-7' : 'left-1'}`}></div>
+            </button>
+          </div>
+
+          {/* Debug Interface */}
+          {settings.debugMode && (
+            <div className="bg-black/30 border border-lime-500/30 rounded-xl p-4 space-y-4 animate-fade-in">
+              <div className="flex items-center gap-2 text-lime-400 text-sm font-bold border-b border-lime-500/30 pb-2">
+                <Terminal className="w-4 h-4" /> 개발자 도구
+              </div>
+
+              {/* Role Selector */}
+              <div className="flex gap-2">
+                {[Role.HERO, Role.VILLAIN, Role.CIVILIAN].map(r => (
+                  <button
+                    key={r}
+                    onClick={() => { setActiveDebugRole(r); setMoneyInput(''); }}
+                    className={`flex-1 py-1 text-xs font-bold rounded border ${activeDebugRole === r ? 'bg-lime-900/30 text-lime-400 border-lime-500' : 'bg-[#1c1c1c] text-gray-500 border-transparent'}`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                {/* Money Cheat */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">자금 변경 (현재: {resources[activeDebugRole].money}G)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      placeholder="변경할 금액" 
+                      value={moneyInput}
+                      onChange={(e) => setMoneyInput(e.target.value)}
+                      className="flex-1 bg-[#1c1c1c] border border-[#404040] rounded px-3 text-sm text-white outline-none focus:border-lime-500"
+                    />
+                    <button 
+                      onClick={handleSetMoney}
+                      className="bg-lime-600 hover:bg-lime-500 text-black px-3 rounded font-bold text-xs"
+                    >
+                      설정
+                    </button>
+                  </div>
+                </div>
+
+                {/* Item Cheat */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">아이템 강제 추가</label>
+                  <div className="flex gap-2">
+                    <select 
+                      value={selectedItemId}
+                      onChange={(e) => setSelectedItemId(e.target.value)}
+                      className="flex-1 bg-[#1c1c1c] border border-[#404040] rounded px-2 py-2 text-xs text-white outline-none focus:border-lime-500"
+                    >
+                      {GAME_ITEMS.map(item => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} ({item.price}G)
+                        </option>
+                      ))}
+                    </select>
+                    <button 
+                      onClick={() => onDebugAddItem(activeDebugRole, selectedItemId, 1)}
+                      className="bg-lime-600 hover:bg-lime-500 text-black px-3 rounded font-bold text-xs flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> 1개
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

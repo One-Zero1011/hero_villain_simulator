@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Role, FactionResources, Item, Character, Status } from '../../types/index';
-import { X, Coins, Shield, Skull, Users, ArrowLeft, Heart, Zap, Clover, Activity, PackageOpen } from 'lucide-react';
+import { X, Coins, Shield, Skull, Users, ArrowLeft, Heart, Zap, Clover, Activity, PackageOpen, Brain } from 'lucide-react';
 
 interface Props {
   role: Role;
@@ -81,6 +81,33 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
   };
 
   const renderEffectPreview = (item: Item) => {
+    if (item.effectType === 'EQUIPMENT' && item.statBonus) {
+      return (
+        <div className="flex flex-wrap gap-2 mt-1">
+          {item.statBonus.strength && (
+            <span className="text-red-400 flex items-center gap-1 text-[10px] bg-red-900/30 px-1.5 py-0.5 rounded">
+              <Zap className="w-3 h-3" /> 근력 +{item.statBonus.strength}
+            </span>
+          )}
+          {item.statBonus.intelligence && (
+            <span className="text-blue-400 flex items-center gap-1 text-[10px] bg-blue-900/30 px-1.5 py-0.5 rounded">
+              <Brain className="w-3 h-3" /> 지능 +{item.statBonus.intelligence}
+            </span>
+          )}
+          {item.statBonus.stamina && (
+            <span className="text-green-400 flex items-center gap-1 text-[10px] bg-green-900/30 px-1.5 py-0.5 rounded">
+              <Heart className="w-3 h-3" /> 체력 +{item.statBonus.stamina}
+            </span>
+          )}
+          {item.statBonus.luck && (
+            <span className="text-yellow-400 flex items-center gap-1 text-[10px] bg-yellow-900/30 px-1.5 py-0.5 rounded">
+              <Clover className="w-3 h-3" /> 행운 +{item.statBonus.luck}
+            </span>
+          )}
+        </div>
+      );
+    }
+
     switch (item.effectType) {
       case 'HEAL': return <span className="text-emerald-400 flex items-center gap-1"><Heart className="w-3 h-3" /> 체력 +{item.effectValue}</span>;
       case 'BUFF_STRENGTH': return <span className="text-red-400 flex items-center gap-1"><Zap className="w-3 h-3" /> 근력 +{item.effectValue}</span>;
@@ -105,7 +132,7 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
               theme.icon
             )}
             <h2 className={`text-xl font-bold ${theme.title} flex items-center gap-2`}>
-              {selectedItem ? `${selectedItem.name} 사용` : '인벤토리'}
+              {selectedItem ? (selectedItem.effectType === 'EQUIPMENT' ? `${selectedItem.name} 장착` : `${selectedItem.name} 사용`) : '인벤토리'}
             </h2>
           </div>
           <div className="flex items-center gap-4">
@@ -145,15 +172,14 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
                           <span className="text-2xl">{item.icon}</span>
                           <div>
                             <div className="font-bold text-sm text-gray-100">{item.name}</div>
-                            <div className="text-[10px] opacity-70 flex gap-2">
-                              {renderEffectPreview(item)}
-                            </div>
+                            {item.effectType === 'EQUIPMENT' && <span className="text-[10px] text-gray-400">{item.equipSlot}</span>}
                           </div>
                         </div>
                         <span className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-gray-300">
                           x{item.count}
                         </span>
                       </div>
+                      <div className="mb-2">{renderEffectPreview(item)}</div>
                       <p className="text-xs text-gray-400 line-clamp-2">{item.description}</p>
                       <div className="absolute inset-0 border-2 border-white/0 rounded-xl group-hover:border-white/10 transition-colors pointer-events-none"></div>
                     </button>
@@ -164,15 +190,28 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
           ) : (
             // --- Character Selection View ---
             <div className="space-y-4">
-               <div className="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3">
-                 <div className="text-3xl">{selectedItem.icon}</div>
-                 <div>
-                   <div className="font-bold text-white">{selectedItem.name}</div>
-                   <div className="text-xs text-gray-400">{selectedItem.description}</div>
+               <div className="bg-black/20 p-3 rounded-lg border border-white/5 flex flex-col gap-2">
+                 <div className="flex items-center gap-3">
+                   <div className="text-3xl">{selectedItem.icon}</div>
+                   <div>
+                     <div className="font-bold text-white flex items-center gap-2">
+                       {selectedItem.name} 
+                       {selectedItem.effectType === 'EQUIPMENT' && (
+                         <span className="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-300">{selectedItem.equipSlot}</span>
+                       )}
+                     </div>
+                     <div className="text-xs text-gray-400">{selectedItem.description}</div>
+                   </div>
+                 </div>
+                 {/* Enhanced Stat Preview for Detailed View */}
+                 <div className="pt-2 border-t border-white/5">
+                   {renderEffectPreview(selectedItem)}
                  </div>
                </div>
 
-               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider px-1">사용할 대상 선택</h3>
+               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider px-1">
+                 {selectedItem.effectType === 'EQUIPMENT' ? '장착할 대상 선택' : '사용할 대상 선택'}
+               </h3>
                
                <div className="grid grid-cols-1 gap-2">
                  {characters.map(char => (
@@ -215,7 +254,7 @@ const InventoryModal: React.FC<Props> = ({ role, resources, characters, isOpen, 
                      
                      {char.status !== Status.DEAD && (
                        <div className={`px-3 py-1.5 rounded text-xs font-bold ${theme.button} text-white shadow-lg`}>
-                         사용
+                         {selectedItem.effectType === 'EQUIPMENT' ? '장착' : '사용'}
                        </div>
                      )}
                    </button>

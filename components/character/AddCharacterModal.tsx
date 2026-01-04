@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Character, Role, Gender, Stats, Relationship } from '../../types/index';
 import { MBTI_TYPES, SUPERPOWERS, RELATIONSHIP_TYPES, PERSONALITY_TYPES } from '../../data/options';
+import ConfirmModal from '../common/ConfirmModal';
 import { 
   X, UserPlus, Plus, Trash2, Shield, Skull, User, 
   Image as ImageIcon, Upload, Link as LinkIcon, 
@@ -30,8 +31,11 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
   // Hero Specific
   const [isIdentityRevealed, setIsIdentityRevealed] = useState(false);
 
-  // Hero/Villain Specific
-  const [superpower, setSuperpower] = useState(SUPERPOWERS[0]);
+  // Hero/Villain Specific - Superpower Logic
+  const CUSTOM_POWER_KEY = '기타 (직접 입력)';
+  const [powerSelection, setPowerSelection] = useState(SUPERPOWERS[0]);
+  const [customPowerInput, setCustomPowerInput] = useState('');
+  
   const [stats, setStats] = useState<Stats>({
     strength: 50,
     intelligence: 50,
@@ -46,6 +50,9 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
   const [affinity, setAffinity] = useState<number>(0);
   const [isMutual, setIsMutual] = useState(false); // Toggle state for relationship direction
 
+  // Alert State
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Initialize for Edit Mode ---
@@ -59,7 +66,21 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
       setPersonality(initialData.personality || '');
       setImageUrl(initialData.imageUrl || '');
       setIsIdentityRevealed(!!initialData.isIdentityRevealed);
-      if (initialData.superpower) setSuperpower(initialData.superpower);
+      
+      // Superpower Initialization Logic
+      if (initialData.superpower) {
+        if (SUPERPOWERS.includes(initialData.superpower)) {
+          setPowerSelection(initialData.superpower);
+          setCustomPowerInput('');
+        } else {
+          setPowerSelection(CUSTOM_POWER_KEY);
+          setCustomPowerInput(initialData.superpower);
+        }
+      } else {
+        setPowerSelection(SUPERPOWERS[0]);
+        setCustomPowerInput('');
+      }
+
       if (initialData.stats) setStats(initialData.stats);
       if (initialData.relationships) setRelationships(initialData.relationships);
     } else if (isOpen && !initialData) {
@@ -143,7 +164,11 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
     setImageUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`);
 
     // Always randomize stats/superpower just in case user switches role later
-    setSuperpower(SUPERPOWERS[Math.floor(Math.random() * SUPERPOWERS.length)]);
+    // Exclude 'Custom Input' from random selection
+    const availablePowers = SUPERPOWERS.filter(p => p !== CUSTOM_POWER_KEY);
+    setPowerSelection(availablePowers[Math.floor(Math.random() * availablePowers.length)]);
+    setCustomPowerInput('');
+
     setStats({
         strength: Math.floor(Math.random() * 100) + 1,
         intelligence: Math.floor(Math.random() * 100) + 1,
@@ -173,7 +198,7 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
     if (!relTargetId) return;
     // Self check
     if (initialData && relTargetId === initialData.id) {
-        alert("자신과는 관계를 맺을 수 없습니다.");
+        setAlertMessage("자신과는 관계를 맺을 수 없습니다.");
         return;
     }
 
@@ -182,7 +207,7 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
 
     // Prevent duplicates
     if (relationships.some(r => r.targetId === relTargetId)) {
-      alert("이미 관계가 설정된 캐릭터입니다.");
+      setAlertMessage("이미 관계가 설정된 캐릭터입니다.");
       return;
     }
 
@@ -201,8 +226,18 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
 
   const handleSubmit = () => {
     if (!name.trim()) {
-      alert("이름을 입력해주세요.");
+      setAlertMessage("이름을 입력해주세요.");
       return;
+    }
+
+    // Determine final superpower
+    let finalSuperpower = powerSelection;
+    if (role !== Role.CIVILIAN && powerSelection === CUSTOM_POWER_KEY) {
+      if (!customPowerInput.trim()) {
+        setAlertMessage("직접 입력할 초능력을 작성해주세요.");
+        return;
+      }
+      finalSuperpower = customPowerInput.trim();
     }
 
     // Calculate average power for compatibility
@@ -221,8 +256,9 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
       imageUrl,
       power,
       relationships,
+      equipment: initialData?.equipment || {},
       ...(role !== Role.CIVILIAN && {
-        superpower,
+        superpower: finalSuperpower,
         stats
       })
     };
@@ -255,6 +291,8 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
     setRelationships([]);
     setIsMutual(false);
     setAffinity(0);
+    setPowerSelection(SUPERPOWERS[0]);
+    setCustomPowerInput('');
   };
 
   const handleStatChange = (key: keyof Stats, value: string) => {
@@ -272,7 +310,19 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      
+      {/* Alert Modal */}
+      <ConfirmModal 
+        isOpen={!!alertMessage}
+        title="알림"
+        message={alertMessage}
+        confirmText="확인"
+        onClose={() => setAlertMessage(null)}
+        onlyOk={true}
+      />
+
       <div className="bg-[#232323] w-full max-w-2xl max-h-[90vh] rounded-2xl border border-[#333333] shadow-2xl flex flex-col overflow-hidden text-gray-200">
+        {/* ... (rest of the modal content remains identical) ... */}
         
         {/* Header */}
         <div className="p-4 border-b border-[#333333] flex justify-between items-center bg-[#1c1c1c]">
@@ -300,7 +350,7 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
           
           {/* 1. Image & Basic Info Wrapper */}
           <div className="flex flex-col md:flex-row gap-6">
-            {/* Image Upload Section ... (No changes here) */}
+            {/* Image Upload Section */}
             <div className="flex-shrink-0 flex flex-col items-center gap-3">
               <div 
                 className="w-32 h-32 rounded-xl bg-[#2a2a2a] border-2 border-dashed border-[#404040] flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-blue-500 transition-colors"
@@ -445,12 +495,25 @@ const AddCharacterModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, 
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">초능력</label>
                 <select 
-                  value={superpower} 
-                  onChange={(e) => setSuperpower(e.target.value)}
+                  value={powerSelection} 
+                  onChange={(e) => setPowerSelection(e.target.value)}
                   className="w-full bg-[#2a2a2a] border border-[#404040] rounded px-3 py-2 text-white outline-none"
                 >
                   {SUPERPOWERS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
+                
+                {/* Custom Input for Superpower */}
+                {powerSelection === CUSTOM_POWER_KEY && (
+                  <div className="mt-2 animate-fade-in">
+                    <input
+                      type="text"
+                      value={customPowerInput}
+                      onChange={(e) => setCustomPowerInput(e.target.value)}
+                      placeholder="자신만의 초능력을 입력하세요 (예: 시간 역행)"
+                      className="w-full bg-[#1c1c1c] border border-blue-500/50 rounded px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">

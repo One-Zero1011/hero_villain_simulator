@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
-import { Character, Role } from './types/index';
+import { Character, Role, Item } from './types/index';
 import { Shield, Skull, Users } from 'lucide-react';
 import AddCharacterModal from './components/character/AddCharacterModal';
 import CharacterSection from './components/character/CharacterSection';
@@ -10,9 +10,11 @@ import HousingModal from './components/housing/HousingModal';
 import InventoryModal from './components/inventory/InventoryModal';
 import RelationshipMapModal from './components/relationships/RelationshipMapModal';
 import SaveLoadModal from './components/simulation/SaveLoadModal';
-import SettingsModal from './components/simulation/SettingsModal'; // New Import
+import SettingsModal from './components/simulation/SettingsModal';
+import ShopModal from './components/shop/ShopModal'; 
 import GameLayout from './components/layout/GameLayout';
 import Sidebar from './components/layout/Sidebar';
+import ConfirmModal from './components/common/ConfirmModal'; 
 
 function App() {
   const {
@@ -35,9 +37,16 @@ function App() {
     handleReset,
     handleBattleComplete,
     handleUseItem,
+    handleBuyItem,
+    handleDebugSetMoney,
+    handleDebugAddItem,
+    handleUnequipItem,
     exportData,
     importData
   } = useGameEngine();
+
+  // Navigation / Shop State
+  const [currentView, setCurrentView] = useState<'CITY' | 'SHOP'>('CITY');
 
   // Inventory Modal State
   const [inventoryModalRole, setInventoryModalRole] = useState<Role | null>(null);
@@ -53,6 +62,12 @@ function App() {
 
   // Edit Character State
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
+
+  // Unequip Confirmation State
+  const [unequipRequest, setUnequipRequest] = useState<{ charId: string; slot: string; item: Item } | null>(null);
+
+  // Reset Confirmation State
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   // Filtering characters
   const heroes = characters.filter(c => c.role === Role.HERO);
@@ -74,15 +89,37 @@ function App() {
     setEditingCharacter(null);
   };
 
+  const handleNavigate = (view: 'CITY' | 'SHOP') => {
+    setCurrentView(view);
+  };
+
+  const requestUnequip = (charId: string, slot: string, item: Item) => {
+    setUnequipRequest({ charId, slot, item });
+  };
+
+  const confirmUnequip = () => {
+    if (unequipRequest) {
+      handleUnequipItem(unequipRequest.charId, unequipRequest.slot);
+      setUnequipRequest(null);
+    }
+  };
+
+  const handleResetConfirm = () => {
+    handleReset();
+    setIsResetConfirmOpen(false);
+  }
+
   return (
     <div className="min-h-screen bg-[#232323] text-gray-200">
       <GameLayout
         day={day}
         characters={characters}
         onNextDay={handleNextDay}
-        onReset={handleReset}
+        onReset={() => setIsResetConfirmOpen(true)}
         onOpenSaveLoad={() => setIsSaveLoadOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)} // Pass handler
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        currentView={currentView}
+        onNavigate={handleNavigate}
       >
         {/* Global Modals */}
         {currentBattle && (
@@ -134,7 +171,44 @@ function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           settings={gameSettings}
+          resources={factionResources}
           onUpdateSettings={setGameSettings}
+          onDebugSetMoney={handleDebugSetMoney}
+          onDebugAddItem={handleDebugAddItem}
+        />
+
+        {/* Shop Modal */}
+        <ShopModal 
+          isOpen={currentView === 'SHOP'}
+          onClose={() => setCurrentView('CITY')}
+          resources={factionResources}
+          onBuyItem={handleBuyItem}
+        />
+
+        {/* Unequip Confirmation Modal */}
+        <ConfirmModal 
+          isOpen={!!unequipRequest}
+          title="장비 해제"
+          message={
+            <>
+              <span className="text-yellow-400 font-bold">{unequipRequest?.item.name}</span>을(를)<br/>
+              장비에서 해제하여 인벤토리로 보낼까요?
+            </>
+          }
+          confirmText="해제하기"
+          onConfirm={confirmUnequip}
+          onClose={() => setUnequipRequest(null)}
+        />
+
+        {/* Reset Confirmation Modal */}
+        <ConfirmModal 
+          isOpen={isResetConfirmOpen}
+          title="게임 초기화"
+          message="정말로 게임을 초기화하시겠습니까? 모든 진행 데이터가 사라지며 되돌릴 수 없습니다."
+          confirmText="초기화"
+          onConfirm={handleResetConfirm}
+          onClose={() => setIsResetConfirmOpen(false)}
+          type="danger"
         />
 
         <AddCharacterModal
@@ -167,6 +241,7 @@ function App() {
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.HERO)}
+            onRequestUnequip={requestUnequip}
           />
 
           <CharacterSection
@@ -180,6 +255,7 @@ function App() {
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.VILLAIN)}
+            onRequestUnequip={requestUnequip}
           />
 
           <CharacterSection
@@ -193,6 +269,7 @@ function App() {
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
             onOpenInventory={() => setInventoryModalRole(Role.CIVILIAN)}
+            onRequestUnequip={requestUnequip}
           />
         </div>
       </GameLayout>

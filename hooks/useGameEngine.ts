@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { Character, LogEntry, Role, Status, Housing, FactionResources, Item, SaveData, SaveType, GameSettings } from '../types/index';
+import { Character, LogEntry, Role, Status, Housing, FactionResources, Item, SaveData, SaveType, GameSettings, EquipmentSlot } from '../types/index';
 import { processDailyEvents } from '../services/simulationService';
 import { generateId } from '../utils/helpers';
 import { GAME_ITEMS } from '../data/items';
@@ -21,36 +21,38 @@ const createItem = (id: string, count: number): Item | null => {
     price: def.price,
     role: def.role,
     effectType: def.effectType,
-    effectValue: def.effectValue
+    effectValue: def.effectValue,
+    equipSlot: def.equipSlot, // Map new props
+    statBonus: def.statBonus // Map new props
   };
 };
 
 const INITIAL_RESOURCES: Record<Role, FactionResources> = {
   [Role.HERO]: {
-    money: 50000,
+    money: 0, 
     inventory: [
       createItem('h_bandage', 5),
       createItem('h_potion', 2),
       createItem('com_water', 10),
-      createItem('com_lunchbox', 5)
+      createItem('eq_suit_tactical', 1) // Free equipment for testing
     ].filter((i): i is Item => i !== null)
   },
   [Role.VILLAIN]: {
-    money: 120000,
+    money: 0, 
     inventory: [
       createItem('v_smoke', 3),
       createItem('v_serum', 1),
       createItem('com_water', 20),
-      createItem('com_bandaid', 10)
+      createItem('eq_acc_neck_amulet', 1) // Free equipment for testing
     ].filter((i): i is Item => i !== null)
   },
   [Role.CIVILIAN]: {
-    money: 3500,
+    money: 0, 
     inventory: [
       createItem('c_lotto', 10),
       createItem('com_water', 2),
       createItem('com_bandaid', 3),
-      createItem('com_lunchbox', 1)
+      createItem('eq_shoes_running', 1) // Free equipment for testing
     ].filter((i): i is Item => i !== null)
   }
 };
@@ -58,10 +60,11 @@ const INITIAL_RESOURCES: Record<Role, FactionResources> = {
 const INITIAL_SETTINGS: GameSettings = {
   preventMinorAdultDating: true,
   allowFamilyDating: false,
-  pureLoveMode: true,    // 순애 모드 기본 ON
-  allowSameSex: false,   // 동성 연애 기본 OFF
-  allowHetero: true,     // 이성 연애 기본 ON
-  globalNoRomance: false // 우정 모드 기본 OFF
+  pureLoveMode: true,    
+  allowSameSex: false,   
+  allowHetero: true,     
+  globalNoRomance: false,
+  debugMode: false,      
 };
 
 export const useGameEngine = () => {
@@ -84,7 +87,7 @@ export const useGameEngine = () => {
   // This allows passing the updated state immediately after a battle without waiting for React re-render.
   const proceedDay = (battleLogs: LogEntry[], battleParticipants: string[] = [], currentChars: Character[] = characters) => {
     // Pass gameSettings to processDailyEvents
-    const { updatedCharacters, newLogs } = processDailyEvents(day, currentChars, battleParticipants, gameSettings);
+    const { updatedCharacters, newLogs, income } = processDailyEvents(day, currentChars, battleParticipants, gameSettings);
     
     const dayStartLog: LogEntry = {
       id: `day-start-${day + 1}`,
@@ -93,6 +96,13 @@ export const useGameEngine = () => {
       type: 'INFO',
       timestamp: Date.now()
     };
+
+    // Apply Income from Events
+    setFactionResources(prev => ({
+      [Role.HERO]: { ...prev[Role.HERO], money: prev[Role.HERO].money + (income[Role.HERO] || 0) },
+      [Role.VILLAIN]: { ...prev[Role.VILLAIN], money: prev[Role.VILLAIN].money + (income[Role.VILLAIN] || 0) },
+      [Role.CIVILIAN]: { ...prev[Role.CIVILIAN], money: prev[Role.CIVILIAN].money + (income[Role.CIVILIAN] || 0) },
+    }));
 
     setCharacters(updatedCharacters);
     setLogs(prev => [...prev, dayStartLog, ...battleLogs, ...newLogs]);
@@ -104,8 +114,8 @@ export const useGameEngine = () => {
     const activeChars = characters.filter(c => c.status !== Status.DEAD);
     const insaneChars = activeChars.filter(c => c.isInsane);
     
-    // 2. Insanity Battle Trigger (High Priority)
-    if (insaneChars.length > 0 && activeChars.length > 1 && Math.random() < 0.7) {
+    // 2. Insanity Battle Trigger (25% chance)
+    if (insaneChars.length > 0 && activeChars.length > 1 && Math.random() < 0.25) {
       const attacker = insaneChars[Math.floor(Math.random() * insaneChars.length)];
       // Can attack anyone except self
       const potentialTargets = activeChars.filter(c => c.id !== attacker.id);
@@ -120,17 +130,18 @@ export const useGameEngine = () => {
           day: day + 1,
           message: `[광기] 이성을 잃은 ${attacker.name}이(가) 피아식별 없이 ${defender.name}을(를) 공격합니다!`,
           type: 'INSANITY',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          statChanges: { sanity: -10 }
         }]);
         return;
       }
     }
 
-    // 3. Normal Battle Probability (50% chance if both Hero and Villain exist)
+    // 3. Normal Battle Probability (10% chance if both Hero and Villain exist)
     const heroes = activeChars.filter(c => c.role === Role.HERO && c.status === Status.NORMAL);
     const villains = activeChars.filter(c => c.role === Role.VILLAIN && c.status === Status.NORMAL);
 
-    if (heroes.length > 0 && villains.length > 0 && Math.random() < 0.5) {
+    if (heroes.length > 0 && villains.length > 0 && Math.random() < 0.1) {
       // Start Battle Mode
       const randomHero = heroes[Math.floor(Math.random() * heroes.length)];
       const randomVillain = villains[Math.floor(Math.random() * villains.length)];
@@ -193,7 +204,8 @@ export const useGameEngine = () => {
         day: day + 1,
         message: `⚔️ 전투 종료! ${winner.name}의 승리! (남은 체력: ${Math.ceil(winnerHp)})`,
         type: 'BATTLE',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        statChanges: { hp: winnerHp - (winner.currentHp || 0) } // Approximate tracking
       },
       ...battleLogTexts.slice(-3).map((text) => ({ // Add last 3 lines of combat log
         id: generateId(),
@@ -209,7 +221,8 @@ export const useGameEngine = () => {
           ? `전투 결과: ${loser.name}이(가) 치명상을 입고 사망했습니다...` 
           : `전투 결과: ${loser.name}이(가) 큰 부상을 입고 쓰러졌습니다.`,
         type: isDeath ? 'DEATH' : 'INFO',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        statChanges: { hp: - (loser.currentHp || 100) }
       }
     ];
 
@@ -217,6 +230,172 @@ export const useGameEngine = () => {
     // Pass the 'updatedChars' explicitly so proceedDay uses the post-battle state
     // including deaths and injuries, instead of the stale 'characters' state.
     proceedDay(battleLogs, [winner.id, loser.id], updatedChars);
+  };
+
+  // --- Shop Logic ---
+  const handleBuyItem = (role: Role, itemId: string) => {
+    const itemDef = GAME_ITEMS.find(i => i.id === itemId);
+    if (!itemDef) return;
+
+    setFactionResources(prev => {
+      const currentFaction = prev[role];
+      if (currentFaction.money < itemDef.price) return prev; // Not enough money
+
+      const newInventory = [...currentFaction.inventory];
+      const existingItemIndex = newInventory.findIndex(i => i.id === itemId);
+
+      if (existingItemIndex >= 0) {
+        newInventory[existingItemIndex] = {
+          ...newInventory[existingItemIndex],
+          count: newInventory[existingItemIndex].count + 1
+        };
+      } else {
+        newInventory.push({
+          id: itemDef.id,
+          name: itemDef.name,
+          icon: itemDef.icon,
+          count: 1,
+          description: itemDef.description,
+          price: itemDef.price,
+          role: itemDef.role,
+          effectType: itemDef.effectType,
+          effectValue: itemDef.effectValue,
+          equipSlot: itemDef.equipSlot,
+          statBonus: itemDef.statBonus
+        });
+      }
+
+      return {
+        ...prev,
+        [role]: {
+          money: currentFaction.money - itemDef.price,
+          inventory: newInventory
+        }
+      };
+    });
+
+    setLogs(prev => [...prev, {
+      id: generateId(),
+      day,
+      message: `[상점] ${role} 진영이 '${itemDef.name}'을(를) 구매했습니다. (-${itemDef.price}G)`,
+      type: 'INFO',
+      timestamp: Date.now()
+    }]);
+  };
+
+  // --- Cheat / Debug Logic ---
+  const handleDebugSetMoney = (role: Role, amount: number) => {
+    setFactionResources(prev => ({
+      ...prev,
+      [role]: {
+        ...prev[role],
+        money: amount
+      }
+    }));
+  };
+
+  const handleDebugAddItem = (role: Role, itemId: string, count: number) => {
+    const itemDef = GAME_ITEMS.find(i => i.id === itemId);
+    if (!itemDef) return;
+
+    setFactionResources(prev => {
+      const currentFaction = prev[role];
+      const newInventory = [...currentFaction.inventory];
+      const existingItemIndex = newInventory.findIndex(i => i.id === itemId);
+
+      if (existingItemIndex >= 0) {
+        newInventory[existingItemIndex] = {
+          ...newInventory[existingItemIndex],
+          count: newInventory[existingItemIndex].count + count
+        };
+      } else {
+        newInventory.push({
+          id: itemDef.id,
+          name: itemDef.name,
+          icon: itemDef.icon,
+          count: count,
+          description: itemDef.description,
+          price: itemDef.price,
+          role: itemDef.role,
+          effectType: itemDef.effectType,
+          effectValue: itemDef.effectValue,
+          equipSlot: itemDef.equipSlot,
+          statBonus: itemDef.statBonus
+        });
+      }
+
+      return {
+        ...prev,
+        [role]: {
+          ...currentFaction,
+          inventory: newInventory
+        }
+      };
+    });
+  };
+
+  const handleUnequipItem = (charId: string, slotName: string) => {
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+
+    const slot = slotName.toLowerCase() as keyof typeof char.equipment;
+    const equippedItem = char.equipment[slot];
+    if (!equippedItem) return;
+
+    // 1. Calculate new stats (Remove item bonuses)
+    const newStats = { ...char.stats } as any;
+    if (char.stats && equippedItem.statBonus) {
+      if (equippedItem.statBonus.strength) newStats.strength = Math.max(1, newStats.strength - (equippedItem.statBonus.strength || 0));
+      if (equippedItem.statBonus.intelligence) newStats.intelligence = Math.max(1, newStats.intelligence - (equippedItem.statBonus.intelligence || 0));
+      if (equippedItem.statBonus.stamina) newStats.stamina = Math.max(1, newStats.stamina - (equippedItem.statBonus.stamina || 0));
+      if (equippedItem.statBonus.luck) newStats.luck = Math.max(1, newStats.luck - (equippedItem.statBonus.luck || 0));
+    }
+
+    // 2. Update Character
+    const updatedChar: Character = {
+      ...char,
+      stats: newStats,
+      equipment: {
+        ...char.equipment,
+        [slot]: null
+      }
+    };
+
+    setCharacters(prev => prev.map(c => c.id === charId ? updatedChar : c));
+
+    // 3. Return item to faction inventory
+    const factionRole = char.role;
+    setFactionResources(prev => {
+      const currentFaction = prev[factionRole];
+      const newInventory = [...currentFaction.inventory];
+      const existingIdx = newInventory.findIndex(i => i.id === equippedItem.id);
+
+      if (existingIdx >= 0) {
+        newInventory[existingIdx] = { 
+          ...newInventory[existingIdx], 
+          count: newInventory[existingIdx].count + 1 
+        };
+      } else {
+        newInventory.push({ ...equippedItem, count: 1 });
+      }
+
+      return {
+        ...prev,
+        [factionRole]: {
+          ...currentFaction,
+          inventory: newInventory
+        }
+      };
+    });
+
+    setLogs(prev => [...prev, {
+      id: generateId(),
+      day,
+      message: `[장비] ${char.name}이(가) ${equippedItem.name}을(를) 해제했습니다.`,
+      type: 'INFO',
+      timestamp: Date.now(),
+      statChanges: { hp: 0, sanity: 0 } 
+    }]);
   };
 
   const handleUseItem = (itemId: string, targetCharId: string, factionRole: Role) => {
@@ -234,19 +413,120 @@ export const useGameEngine = () => {
     let logMessage = '';
     let updatedChar = { ...targetChar };
     let gainedMoney = 0;
+    let hpChange = 0;
+    let sanityChange = 0;
+    
+    // --- Equipment Logic ---
+    if (item.effectType === 'EQUIPMENT' && item.equipSlot) {
+      const slot = item.equipSlot.toLowerCase() as keyof typeof updatedChar.equipment;
+      const currentEquipped = updatedChar.equipment[slot];
+      
+      // Calculate Stats: Remove old item stats, Add new item stats
+      if (updatedChar.stats) {
+        let newStats = { ...updatedChar.stats };
+        
+        // Remove old stats (Use || 0 to prevent NaN if stat is undefined)
+        if (currentEquipped?.statBonus) {
+          newStats.strength -= (currentEquipped.statBonus.strength || 0);
+          newStats.intelligence -= (currentEquipped.statBonus.intelligence || 0);
+          newStats.stamina -= (currentEquipped.statBonus.stamina || 0);
+          newStats.luck -= (currentEquipped.statBonus.luck || 0);
+        }
 
+        // Add new stats (Use || 0 to prevent NaN)
+        if (item.statBonus) {
+          newStats.strength += (item.statBonus.strength || 0);
+          newStats.intelligence += (item.statBonus.intelligence || 0);
+          newStats.stamina += (item.statBonus.stamina || 0);
+          newStats.luck += (item.statBonus.luck || 0);
+        }
+        
+        // Clamp stats
+        updatedChar.stats = {
+          strength: Math.max(1, newStats.strength),
+          intelligence: Math.max(1, newStats.intelligence),
+          stamina: Math.max(1, newStats.stamina),
+          luck: Math.max(1, newStats.luck),
+        };
+      }
+
+      // Unequip logic: Return old item to inventory
+      let itemsReturned: Item[] = [];
+      if (currentEquipped) {
+        itemsReturned.push(currentEquipped);
+      }
+
+      // Equip new item
+      updatedChar.equipment = {
+        ...updatedChar.equipment,
+        [slot]: { ...item, count: 1 } // Store single item in slot
+      };
+
+      logMessage = `${targetChar.name}이(가) ${item.name}을(를) 장착했습니다.`;
+
+      // Update Inventory: Remove used item, Add returned item
+      setFactionResources(prev => {
+        const currentFaction = prev[factionRole];
+        let newInventory = [...currentFaction.inventory];
+        
+        // Reduce count or remove used item
+        if (newInventory[itemIndex].count > 1) {
+          newInventory[itemIndex] = { ...newInventory[itemIndex], count: newInventory[itemIndex].count - 1 };
+        } else {
+          newInventory.splice(itemIndex, 1);
+        }
+
+        // Add returned item if any
+        if (itemsReturned.length > 0) {
+          itemsReturned.forEach(returnedItem => {
+            const existingIdx = newInventory.findIndex(i => i.id === returnedItem.id);
+            if (existingIdx >= 0) {
+              newInventory[existingIdx] = { ...newInventory[existingIdx], count: newInventory[existingIdx].count + 1 };
+            } else {
+              newInventory.push(returnedItem);
+            }
+          });
+        }
+
+        return {
+          ...prev,
+          [factionRole]: {
+            ...currentFaction,
+            money: currentFaction.money + gainedMoney, // usually 0 for equip
+            inventory: newInventory
+          }
+        };
+      });
+
+      setCharacters(prev => prev.map(c => c.id === targetCharId ? updatedChar : c));
+      setLogs(prev => [...prev, {
+        id: generateId(),
+        day,
+        message: `[장비] ${logMessage}`,
+        type: 'INFO',
+        timestamp: Date.now()
+      }]);
+
+      return; // Exit function for equipment
+    }
+
+    // --- Consumable Logic ---
     switch (item.effectType) {
       case 'HEAL':
         const healAmount = item.effectValue || 10;
         const maxHp = (updatedChar.stats?.stamina || 50) * 2;
         const currentHp = updatedChar.currentHp ?? maxHp;
         updatedChar.currentHp = Math.min(maxHp, currentHp + healAmount);
+        hpChange = updatedChar.currentHp - currentHp;
+
         if (updatedChar.status === Status.INJURED) {
           updatedChar.status = Status.NORMAL;
           logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 부상을 치료하고 체력을 회복했습니다!`;
         } else {
           const maxSanity = (updatedChar.stats?.intelligence || 50) * 2;
-          updatedChar.currentSanity = Math.min(maxSanity, (updatedChar.currentSanity || maxSanity) + 5);
+          const currentSanity = updatedChar.currentSanity || maxSanity;
+          updatedChar.currentSanity = Math.min(maxSanity, currentSanity + 5);
+          sanityChange = updatedChar.currentSanity - currentSanity;
           logMessage = `${item.name}을(를) 사용하여 ${targetChar.name}의 체력을 회복했습니다.`;
         }
         break;
@@ -305,7 +585,8 @@ export const useGameEngine = () => {
       day,
       message: `[아이템] ${logMessage}`,
       type: 'INFO',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      statChanges: { hp: hpChange, sanity: sanityChange }
     }]);
   };
 
@@ -326,7 +607,8 @@ export const useGameEngine = () => {
       currentSanity: maxSanity,
       currentHp: maxHp,
       isInsane: false,
-      housing: { themeId: 'default_room', items: [] } 
+      housing: { themeId: 'default_room', items: [] },
+      equipment: {} // Initialize empty equipment
     };
     
     // Update State (Add new char AND update targets of mutual relationships)
@@ -383,7 +665,26 @@ export const useGameEngine = () => {
   };
 
   const handleUpdateCharacter = (updatedChar: Character) => {
-    setCharacters(prev => prev.map(c => c.id === updatedChar.id ? updatedChar : c));
+    // BUG FIX: When a character name changes, update all relationships pointing to this character
+    setCharacters(prev => prev.map(c => {
+      if (c.id === updatedChar.id) return updatedChar;
+      
+      // Check if this character has a relationship with the updated character
+      const needsUpdate = c.relationships.some(r => r.targetId === updatedChar.id);
+      if (needsUpdate) {
+        return {
+          ...c,
+          relationships: c.relationships.map(r => {
+            if (r.targetId === updatedChar.id) {
+              return { ...r, targetName: updatedChar.name };
+            }
+            return r;
+          })
+        };
+      }
+      return c;
+    }));
+
     setLogs(prev => [...prev, {
       id: generateId(),
       day: day,
@@ -396,7 +697,16 @@ export const useGameEngine = () => {
   const handleDeleteCharacter = (id: string) => {
     const char = characters.find(c => c.id === id);
     if (char) {
-      setCharacters(prev => prev.filter(c => c.id !== id));
+      // BUG FIX: Remove references to this character from everyone else's relationships
+      setCharacters(prev => 
+        prev
+          .filter(c => c.id !== id) // Remove the character itself
+          .map(c => ({
+            ...c,
+            relationships: c.relationships.filter(r => r.targetId !== id) // Remove dangling relationships
+          }))
+      );
+
       setLogs(prev => [...prev, {
         id: generateId(),
         day: day,
@@ -426,7 +736,8 @@ export const useGameEngine = () => {
   };
 
   const handleReset = () => {
-    if (!window.confirm("정말로 게임을 초기화하시겠습니까? 모든 데이터가 사라집니다.")) return;
+    // Removed window.confirm. 
+    // The confirmation UI logic is now handled in App.tsx using ConfirmModal.
     setDay(1);
     setCharacters(INITIAL_CHARACTERS);
     setFactionResources(INITIAL_RESOURCES);
@@ -491,7 +802,7 @@ export const useGameEngine = () => {
       }]);
 
     } else if (data.type === 'ROSTER') {
-      const importedChars = data.characters.map(c => ({
+      const importedChars = data.characters ? data.characters.map(c => ({
         ...c,
         status: Status.NORMAL,
         currentHp: (c.stats?.stamina || 50) * 2,
@@ -500,7 +811,7 @@ export const useGameEngine = () => {
         kills: 0,
         saves: 0,
         battlesWon: 0
-      }));
+      })) : [];
 
       setCharacters(importedChars);
       setDay(1);
@@ -535,6 +846,10 @@ export const useGameEngine = () => {
     handleReset,
     handleBattleComplete,
     handleUseItem,
+    handleBuyItem,
+    handleDebugSetMoney, // Export Cheat Function
+    handleDebugAddItem, // Export Cheat Function
+    handleUnequipItem, // Export Unequip
     exportData,
     importData
   };
