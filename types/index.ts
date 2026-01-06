@@ -112,6 +112,9 @@ export interface Character {
   saves: number;
   battlesWon: number;
   housing?: Housing;
+  
+  // System Flags
+  lastRoleCheckDay?: number; // 마지막으로 전향 체크를 한 날짜
 }
 
 // --- Item Effects ---
@@ -136,13 +139,34 @@ export interface FactionResources {
   money: number;
   inventory: Item[];
 }
+
+// --- Quest System ---
+export type QuestType = 'SUBJUGATION' | 'ESCORT' | 'ASSASSINATION';
+export type QuestStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export interface Quest {
+  id: string;
+  type: QuestType;
+  targetId: string;
+  targetName: string;
+  reward: number;
+  status: QuestStatus;
+  createdAt: number; // Day
+  
+  // Assigned State
+  assignedCharId?: string;
+  assignedCharName?: string;
+  
+  // Logic
+  duration?: number; // For Escort (days remaining)
+}
 // --------------------------------
 
 export interface LogEntry {
   id: string;
   day: number;
   message: string;
-  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY' | 'ROMANCE'; 
+  type: 'INFO' | 'BATTLE' | 'DEATH' | 'EVENT' | 'INTERVENTION' | 'INSANITY' | 'ROMANCE' | 'QUEST'; 
   timestamp: number;
   // New: Stat changes tracking
   statChanges?: {
@@ -178,6 +202,7 @@ export interface SaveData {
   day?: number;
   factionResources?: Record<Role, FactionResources>;
   logs?: LogEntry[];
+  quests?: Quest[]; // Added Quests to save data
 }
 
 // --- Game Settings ---

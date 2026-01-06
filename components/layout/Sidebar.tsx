@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { PlusCircle, Network, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react';
+import { PlusCircle, Network, ChevronDown, ChevronUp, BarChart2, Scroll } from 'lucide-react';
 import LogViewer from '../simulation/LogViewer';
 import FactionBalance from '../simulation/FactionBalance';
 import { LogEntry, Character } from '../../types/index';
@@ -9,37 +9,49 @@ interface Props {
   characters?: Character[]; 
   logs: LogEntry[];
   onOpenAddModal: () => void;
-  onOpenRelMap: () => void; // New prop
+  onOpenRelMap: () => void; 
+  onOpenQuestBoard: () => void; // New Prop
 }
 
-const Sidebar: React.FC<Props> = ({ characters = [], logs, onOpenAddModal, onOpenRelMap }) => {
+const Sidebar: React.FC<Props> = ({ characters = [], logs, onOpenAddModal, onOpenRelMap, onOpenQuestBoard }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-6rem)] lg:sticky lg:top-24 transition-all">
       
-      {/* Action Buttons Grid - Always Visible & Moved to Top for Mobile */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Action Buttons Grid */}
+      <div className="grid grid-cols-3 gap-2">
         {/* Add Character Button */}
         <button 
           onClick={onOpenAddModal}
-          className="bg-[#2a2a2a] hover:bg-[#333333] border border-[#404040] hover:border-blue-500 text-gray-400 hover:text-white rounded-xl p-3 md:p-4 transition-all group flex flex-row lg:flex-col items-center justify-center gap-3 md:gap-2 shadow-lg"
+          className="bg-[#2a2a2a] hover:bg-[#333333] border border-[#404040] hover:border-blue-500 text-gray-400 hover:text-white rounded-xl p-2 md:p-3 transition-all group flex flex-col items-center justify-center gap-1 shadow-lg"
         >
-          <div className="p-1.5 md:p-2 bg-[#1c1c1c] rounded-full group-hover:scale-110 transition-transform text-blue-500 shadow-inner border border-[#333]">
-            <PlusCircle className="w-4 h-4 md:w-5 md:h-5" />
+          <div className="p-1.5 bg-[#1c1c1c] rounded-full group-hover:scale-110 transition-transform text-blue-500 shadow-inner border border-[#333]">
+            <PlusCircle className="w-4 h-4" />
           </div>
-          <span className="font-bold text-sm md:text-xs text-gray-200">캐릭터 추가</span>
+          <span className="font-bold text-[10px] md:text-xs text-gray-200">캐릭터 추가</span>
         </button>
 
         {/* Relationship Map Button */}
         <button 
           onClick={onOpenRelMap}
-          className="bg-[#2a2a2a] hover:bg-[#333333] border border-[#404040] hover:border-purple-500 text-gray-400 hover:text-white rounded-xl p-3 md:p-4 transition-all group flex flex-row lg:flex-col items-center justify-center gap-3 md:gap-2 shadow-lg"
+          className="bg-[#2a2a2a] hover:bg-[#333333] border border-[#404040] hover:border-purple-500 text-gray-400 hover:text-white rounded-xl p-2 md:p-3 transition-all group flex flex-col items-center justify-center gap-1 shadow-lg"
         >
-          <div className="p-1.5 md:p-2 bg-[#1c1c1c] rounded-full group-hover:scale-110 transition-transform text-purple-500 shadow-inner border border-[#333]">
-            <Network className="w-4 h-4 md:w-5 md:h-5" />
+          <div className="p-1.5 bg-[#1c1c1c] rounded-full group-hover:scale-110 transition-transform text-purple-500 shadow-inner border border-[#333]">
+            <Network className="w-4 h-4" />
           </div>
-          <span className="font-bold text-sm md:text-xs text-gray-200">관계도 보기</span>
+          <span className="font-bold text-[10px] md:text-xs text-gray-200">관계도 보기</span>
+        </button>
+
+        {/* Quest Board Button */}
+        <button 
+          onClick={onOpenQuestBoard}
+          className="bg-[#2a2a2a] hover:bg-[#333333] border border-[#404040] hover:border-yellow-500 text-gray-400 hover:text-white rounded-xl p-2 md:p-3 transition-all group flex flex-col items-center justify-center gap-1 shadow-lg"
+        >
+          <div className="p-1.5 bg-[#1c1c1c] rounded-full group-hover:scale-110 transition-transform text-yellow-500 shadow-inner border border-[#333]">
+            <Scroll className="w-4 h-4" />
+          </div>
+          <span className="font-bold text-[10px] md:text-xs text-gray-200">의뢰 게시판</span>
         </button>
       </div>
 

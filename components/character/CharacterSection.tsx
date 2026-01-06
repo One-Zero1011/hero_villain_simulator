@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Character, FactionResources, Item } from '../../types/index';
+import { Character, FactionResources, Item, Quest } from '../../types/index';
 import CharacterCard from './CharacterCard';
 import { Coins, Package, Search } from 'lucide-react';
 
@@ -11,15 +11,16 @@ interface Props {
   badgeClass: string;
   characters: Character[];
   resources: FactionResources;
+  quests?: Quest[]; // New Prop
   onDelete: (id: string) => void;
   onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
   onOpenInventory: () => void; 
-  onRequestUnequip: (charId: string, slot: string, item: Item) => void; // Updated Prop
+  onRequestUnequip: (charId: string, slot: string, item: Item) => void;
 }
 
 const CharacterSection: React.FC<Props> = ({ 
-  title, icon, colorClass, badgeClass, characters, resources, onDelete, onEdit, onOpenHousing, onOpenInventory, onRequestUnequip 
+  title, icon, colorClass, badgeClass, characters, resources, quests = [], onDelete, onEdit, onOpenHousing, onOpenInventory, onRequestUnequip 
 }) => {
   return (
     <section>
@@ -68,16 +69,22 @@ const CharacterSection: React.FC<Props> = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {characters.map(char => (
-          <CharacterCard 
-            key={char.id} 
-            character={char} 
-            onDelete={onDelete} 
-            onEdit={onEdit}
-            onOpenHousing={onOpenHousing}
-            onRequestUnequip={onRequestUnequip} // Pass updated prop
-          />
-        ))}
+        {characters.map(char => {
+          // Find active quest for this character
+          const activeQuest = quests.find(q => q.assignedCharId === char.id && q.status === 'IN_PROGRESS');
+          
+          return (
+            <CharacterCard 
+              key={char.id} 
+              character={char} 
+              onDelete={onDelete} 
+              onEdit={onEdit}
+              onOpenHousing={onOpenHousing}
+              onRequestUnequip={onRequestUnequip}
+              activeQuest={activeQuest} // Pass active quest
+            />
+          );
+        })}
         {characters.length === 0 && (
           <div className="col-span-full py-8 text-center text-gray-600 bg-[#2a2a2a] rounded-lg border border-[#333333] border-dashed">
             등록된 {title}가 없습니다.

@@ -12,9 +12,11 @@ import RelationshipMapModal from './components/relationships/RelationshipMapModa
 import SaveLoadModal from './components/simulation/SaveLoadModal';
 import SettingsModal from './components/simulation/SettingsModal';
 import ShopModal from './components/shop/ShopModal'; 
+import QuestBoardModal from './components/quests/QuestBoardModal'; 
 import GameLayout from './components/layout/GameLayout';
 import Sidebar from './components/layout/Sidebar';
 import ConfirmModal from './components/common/ConfirmModal'; 
+import RoleChangeModal from './components/character/RoleChangeModal';
 
 function App() {
   const {
@@ -22,17 +24,24 @@ function App() {
     characters,
     factionResources,
     logs,
+    quests, // From Hook
     currentBattle,
     housingModalChar,
     isAddCharModalOpen,
     setIsAddCharModalOpen,
     setHousingModalChar,
+    isQuestBoardOpen, // From Hook
+    setIsQuestBoardOpen, // From Hook
+    roleChangeCandidate,
+    handleRoleChangeDecision,
     gameSettings,
     setGameSettings,
     handleNextDay,
     handleAddCharacter,
     handleUpdateCharacter,
     handleDeleteCharacter,
+    handlePostQuest, // From Hook
+    handleDeleteQuest, // From Hook
     handleHousingSave,
     handleReset,
     handleBattleComplete,
@@ -127,6 +136,27 @@ function App() {
             hero={currentBattle.hero} 
             villain={currentBattle.villain} 
             onComplete={handleBattleComplete} 
+          />
+        )}
+
+        {/* Quest Board Modal */}
+        <QuestBoardModal 
+          isOpen={isQuestBoardOpen}
+          onClose={() => setIsQuestBoardOpen(false)}
+          quests={quests}
+          characters={characters}
+          onPostQuest={handlePostQuest}
+          onDeleteQuest={handleDeleteQuest}
+        />
+
+        {/* Role Change Modal (Intervention) */}
+        {roleChangeCandidate && (
+          <RoleChangeModal
+            character={roleChangeCandidate.character}
+            type={roleChangeCandidate.type}
+            isOpen={!!roleChangeCandidate}
+            onConfirm={() => handleRoleChangeDecision(true)}
+            onCancel={() => handleRoleChangeDecision(false)}
           />
         )}
 
@@ -226,6 +256,7 @@ function App() {
           logs={logs} 
           onOpenAddModal={() => setIsAddCharModalOpen(true)} 
           onOpenRelMap={() => setIsRelMapOpen(true)} 
+          onOpenQuestBoard={() => setIsQuestBoardOpen(true)}
         />
 
         {/* Right Content: Character Lists */}
@@ -237,6 +268,7 @@ function App() {
             badgeClass="bg-blue-900/30 text-blue-300"
             characters={heroes}
             resources={factionResources[Role.HERO]}
+            quests={quests} // Pass quests
             onDelete={handleDeleteCharacter}
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
@@ -251,6 +283,7 @@ function App() {
             badgeClass="bg-red-900/30 text-red-300"
             characters={villains}
             resources={factionResources[Role.VILLAIN]}
+            quests={quests} // Pass quests
             onDelete={handleDeleteCharacter}
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}
@@ -265,6 +298,7 @@ function App() {
             badgeClass="bg-emerald-900/30 text-emerald-300"
             characters={civilians}
             resources={factionResources[Role.CIVILIAN]}
+            quests={quests} // Pass quests
             onDelete={handleDeleteCharacter}
             onEdit={openEditModal}
             onOpenHousing={setHousingModalChar}

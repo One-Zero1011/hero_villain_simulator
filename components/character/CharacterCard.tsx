@@ -1,17 +1,18 @@
 
 import React, { useState } from 'react';
-import { Character, Role, Status, Item } from '../../types/index';
-import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff, Edit2, Sword, Shirt, Footprints, HardHat, Disc, CircleDot, X, Box } from 'lucide-react';
+import { Character, Role, Status, Item, Quest } from '../../types/index';
+import { Shield, Skull, User, Activity, Ban, Home, Brain, Zap, Heart, Clover, AlertTriangle, Eye, EyeOff, Edit2, Sword, Shirt, Footprints, HardHat, Disc, CircleDot, X, Box, ScrollText } from 'lucide-react';
 
 interface Props {
   character: Character;
   onDelete: (id: string) => void;
   onEdit?: (char: Character) => void;
   onOpenHousing: (char: Character) => void;
-  onRequestUnequip?: (charId: string, slot: string, item: Item) => void; // Updated Prop
+  onRequestUnequip?: (charId: string, slot: string, item: Item) => void;
+  activeQuest?: Quest; // New Prop
 }
 
-const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHousing, onRequestUnequip }) => {
+const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHousing, onRequestUnequip, activeQuest }) => {
   const [showEquipment, setShowEquipment] = useState(false);
 
   const isDead = character.status === Status.DEAD;
@@ -75,7 +76,6 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
 
   const handleUnequipClick = (item: Item | null | undefined, slot: string) => {
     if (!item || !onRequestUnequip) return;
-    // Trigger modal via prop instead of window.confirm
     onRequestUnequip(character.id, slot, item);
   };
 
@@ -119,6 +119,15 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
     );
   };
 
+  const getQuestLabel = (type: string) => {
+    switch(type) {
+      case 'SUBJUGATION': return '토벌';
+      case 'ASSASSINATION': return '암살';
+      case 'ESCORT': return '호위';
+      default: return '임무';
+    }
+  };
+
   return (
     <div className={`relative p-4 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 
       ${styles.wrapper} 
@@ -128,6 +137,16 @@ const CharacterCard: React.FC<Props> = ({ character, onDelete, onEdit, onOpenHou
       group border border-t-0 border-r-0 border-b-0 overflow-hidden flex flex-col ${showEquipment ? 'min-h-[24rem]' : 'h-full'}`}
     >
       
+      {/* Active Quest Badge - Absolute Positioned */}
+      {activeQuest && !isDead && (
+        <div className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 z-20">
+          <div className="bg-yellow-600/90 text-white text-[10px] px-2 py-1 rounded-bl-lg font-bold shadow-md flex items-center gap-1 border-l border-b border-yellow-400/50 animate-pulse">
+            <ScrollText className="w-3 h-3" />
+            {getQuestLabel(activeQuest.type)} 수행 중
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start gap-3 mb-3 w-full">
         {character.imageUrl ? (
